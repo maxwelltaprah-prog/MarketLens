@@ -3,6 +3,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { enqueue, getItem, type Cell, type CellMap } from '@/lib/offline-db'
 import { flushOutbox, requestBackgroundSync, type SyncOutcome } from '@/lib/sync-client'
+import { getFix, getLastFix } from '@/lib/geo-client'
 import { Icon } from './icons'
 import { cx } from './ui'
 import { toast } from './toast'
@@ -100,10 +101,15 @@ export function CaptureGrid({ userId, date, catalog, initial, previous, previous
     return () => window.removeEventListener('ml-synced', on)
   }, [date, router, setSync])
 
+  const lastSavePing = useRef(0)
   const change = useCallback((key: string, next: Cell) => {
     setCells((c) => ({ ...c, [key]: next }))
     latest.current = { ...latest.current, [key]: next }
-    void enqueue(userId, date, { [key]: next })
+    // Attach a location to edits at most once a minute so the trail shows where prices were typed.
+    const f = getLastFix(); const now = Date.now()
+    const pings = f && now - lastSavePing.current > 60_000 ? [{ ...f, kind: 'save' as const, capturedAt: new Date().toISOString() }] : []
+    if (pings.length) lastSavePing.current = now
+    void enqueue(userId, date, { [key]: next }, undefined, pings)
     setSync(navigator.onLine ? 'dirty' : 'offline')
     setVersion((v) => v + 1)
   }, [userId, date, setSync])
@@ -125,7 +131,8 @@ export function CaptureGrid({ userId, date, catalog, initial, previous, previous
 
   const doSubmit = useCallback(async () => {
     setReview('submitting'); setError(null)
-    await enqueue(userId, date, {}, true)
+    const f = await getFix(8_000)   // fresh fix for the geofence check; falls back to the last known one
+    await enqueue(userId, date, {}, true, f ? [{ ...f, kind: 'submit' }] : [])
     const r = await flush()
     if (r === null) { setReview('queued'); return }
     if (!r.ok) { setReview('review'); return }

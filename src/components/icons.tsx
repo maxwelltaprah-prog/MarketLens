@@ -43,6 +43,9 @@ const P: Record<string, string> = {
   mobile: 'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM12 18h.01',
   home: 'M3 10l9-7 9 7v10a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z',
   history: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2',
+  map: 'M1 6v16l7-4 8 4 7-4V2l-7 4-8-4zM8 2v16M16 6v16',
+  pin: 'M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0zM12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6',
+  battery: 'M2 7h16a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H2zM22 11v2M6 10v4M10 10v4',
 }
 export type IconName = keyof typeof P
 

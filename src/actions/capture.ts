@@ -2,6 +2,8 @@
 import { z } from 'zod'
 import { requireUser } from '@/lib/session'
 import { cellsSchema, saveDraft, submitEntry, type SaveResult } from '@/lib/capture-core'
+import { pingSchema } from '@/lib/location'
+import { clientIp, userAgent } from '@/lib/security'
 
 export type { SaveResult }
 
@@ -16,7 +18,7 @@ export async function saveDraftAction(input: unknown): Promise<SaveResult> {
 
 export async function submitEntryAction(input: unknown): Promise<SaveResult> {
   const user = await requireUser('promoter')
-  const parsed = z.object({ date: z.iso.date() }).safeParse(input)
+  const parsed = z.object({ date: z.iso.date(), fix: pingSchema.nullable().optional() }).safeParse(input)
   if (!parsed.success) return { ok: false, error: 'Invalid date.', permanent: true }
-  return submitEntry(user, parsed.data.date)
+  return submitEntry(user, parsed.data.date, parsed.data.fix ? { ...parsed.data.fix, kind: 'submit' } : null, { ip: await clientIp(), userAgent: await userAgent() })
 }

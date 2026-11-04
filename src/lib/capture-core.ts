@@ -5,6 +5,8 @@ import { db, entries, entryPrices, skuBrands, skus, brands, auditLog } from '@/d
 import { getSettings, type AppSettings } from '@/lib/settings'
 import { todayISO } from '@/lib/format'
 import { canEdit, getEntryWithPrices, type EntryRow } from '@/lib/entries'
+import { geofence, recordPings, type Ping } from '@/lib/location'
+import { outlets } from '@/db'
 
 /* Shared by the server action (online path) and /api/capture/sync (offline replay). */
 
@@ -55,15 +57,36 @@ export async function saveDraft(user: { id: string; outletId: string | null }, d
   return { ok: true, status: r.entry.status, savedAt: new Date().toISOString() }
 }
 
-export async function submitEntry(user: { id: string; outletId: string | null }, date: string): Promise<SaveResult> {
+export type Ctx = { ip?: string; userAgent?: string }
+
+/** Persist location pings against the entry for this date (if it exists) and the user's outlet. */
+export async function attachPings(user: { id: string; outletId: string | null }, date: string, pings: Ping[], ctx: Ctx) {
+  if (!pings.length) return
+  let entryId: string | null = null
+  if (user.outletId) {
+    const [e] = await db.select({ id: entries.id }).from(entries).where(and(eq(entries.outletId, user.outletId), eq(entries.entryDate, date))).limit(1)
+    entryId = e?.id ?? null
+  }
+  await recordPings(user.id, pings, { ...ctx, entryId, outletId: user.outletId })
+}
+
+export async function submitEntry(user: { id: string; outletId: string | null }, date: string, fix: Ping | null = null, ctx: Ctx = {}): Promise<SaveResult> {
   if (!user.outletId) return { ok: false, error: 'You have no outlet assigned.', permanent: true }
   const r = await resolveEntry(user.id, user.outletId, date)
   if (!r.ok) return { ok: false, error: r.error, permanent: true }
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(entryPrices)
     .where(and(eq(entryPrices.entryId, r.entry.id), sql`(${entryPrices.price} is not null or ${entryPrices.notAvailable})`))
   if (n === 0) return { ok: false, error: 'Add at least one price before submitting.', permanent: true }
+  if (r.settings.requireLocation && !fix) return { ok: false, error: 'Location is required to submit. Turn on location for this app and try again.', permanent: true }
+
+  const [outlet] = await db.select({ lat: outlets.lat, lng: outlets.lng }).from(outlets).where(eq(outlets.id, user.outletId))
+  const geo = geofence(fix, outlet ?? null, r.settings.geofenceMeters)
   const now = new Date()
-  await db.update(entries).set({ status: 'submitted', submittedAt: r.entry.submittedAt ?? now, updatedAt: now }).where(eq(entries.id, r.entry.id))
-  await db.insert(auditLog).values({ actorId: user.id, action: r.entry.status === 'submitted' ? 'entry.resubmit' : 'entry.submit', entity: 'entry', entityId: r.entry.id, meta: { filled: n } })
+  await db.update(entries).set({
+    status: 'submitted', submittedAt: r.entry.submittedAt ?? now, updatedAt: now,
+    geoStatus: geo.status, geoDistanceM: geo.distanceM, geoLat: fix?.lat ?? null, geoLng: fix?.lng ?? null,
+  }).where(eq(entries.id, r.entry.id))
+  if (fix) await recordPings(user.id, [{ ...fix, kind: 'submit' }], { ...ctx, entryId: r.entry.id, outletId: user.outletId })
+  await db.insert(auditLog).values({ actorId: user.id, action: r.entry.status === 'submitted' ? 'entry.resubmit' : 'entry.submit', entity: 'entry', entityId: r.entry.id, meta: { filled: n, geo: geo.status, distanceM: geo.distanceM } })
   return { ok: true, status: 'submitted', savedAt: now.toISOString() }
 }

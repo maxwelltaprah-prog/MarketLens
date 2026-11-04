@@ -1,6 +1,7 @@
 'use client'
 import { useEffect } from 'react'
 import { flushOutbox, pendingCount, requestBackgroundSync, type SyncOutcome } from '@/lib/sync-client'
+import { listItems } from '@/lib/offline-db'
 import { toast } from './toast'
 
 /** Lives in the promoter layout. Drains the offline outbox whenever the app is open, online, or gets focus. */
@@ -9,8 +10,7 @@ export function SyncManager() {
     let timer: ReturnType<typeof setInterval> | undefined
     const announce = async () => window.dispatchEvent(new CustomEvent('ml-queue', { detail: await pendingCount() }))
     const flush = async () => {
-      const n = await pendingCount()
-      if (!n) return
+      if (!(await listItems()).length) return
       const r = await flushOutbox()
       if (!r.reached) { void requestBackgroundSync(); return }
       const subs = r.outcomes.filter((o) => o.ok && o.submitted).length

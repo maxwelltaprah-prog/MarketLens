@@ -25,7 +25,7 @@ function csp(nonce: string) {
     `default-src 'self'`,
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${dev ? " 'unsafe-eval'" : ''}`,
     `style-src 'self' 'unsafe-inline'`,      // Tailwind runtime styles + inline style attributes on charts
-    `img-src 'self' data: blob:`,
+    `img-src 'self' data: blob: https://*.tile.openstreetmap.org`,   // map tiles on the field map
     `font-src 'self' data:`,
     `connect-src 'self'${dev ? ' ws: wss:' : ''}`,
     `worker-src 'self'`,

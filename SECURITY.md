@@ -45,6 +45,14 @@ endpoint. Each control below is marked **Verified** (tested in that run) or **Im
 14. Service-worker page cache stores rendered promoter pages on the device. It is wiped on sign-out. Device-level security (screen lock) remains the user's responsibility.
 15. CORS: no `Access-Control-Allow-*` headers are ever sent, so browsers block all cross-origin reads by default; the API additionally rejects cross-site requests outright.
 
+## Location data (added 4 Nov 2026)
+- Collected only after an explicit in-app notice and the browser's own permission prompt; a header indicator shows when sharing is on.
+- Stored in `location_pings` with the user, kind of event, accuracy, device battery/speed when available, the request IP and user agent; pruned automatically after the configured retention period (default 90 days).
+- Written only through authenticated same-origin endpoints (`/api/location`, `/api/capture/sync`), validated with strict schemas and rate limited per user.
+- Readable by administrators only (field map, entry evidence). No third-party service receives coordinates; map tiles are fetched from OpenStreetMap without any user data in the request.
+- `Permissions-Policy` now allows `geolocation=(self)` so the app itself can read GPS; it remains blocked for any embedded content.
+- Recommendation: tell promoters in writing that location is recorded while the app is open, and keep retention at the minimum your audit needs.
+
 ## Operational checklist
 - [ ] Rotate the Neon password; update `DATABASE_URL` in Vercel.
 - [ ] Make the GitHub repository private.

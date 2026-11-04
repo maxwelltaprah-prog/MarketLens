@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { getCurrentUser } from '@/lib/session'
-import { cellsSchema, saveDraft, submitEntry } from '@/lib/capture-core'
-import { isSameOrigin, logSecurity, memoryLimit, clientIp } from '@/lib/security'
+import { attachPings, cellsSchema, saveDraft, submitEntry } from '@/lib/capture-core'
+import { pingSchema } from '@/lib/location'
+import { isSameOrigin, logSecurity, memoryLimit, clientIp, userAgent } from '@/lib/security'
 
 /* Offline replay endpoint. The service worker (Background Sync) and the page both POST the outbox here.
  * Auth: session cookie (checked in the proxy and again here). CSRF: SameSite=Strict cookie + same-origin check.
@@ -9,7 +10,7 @@ import { isSameOrigin, logSecurity, memoryLimit, clientIp } from '@/lib/security
 export const dynamic = 'force-dynamic'
 
 const bodySchema = z.object({
-  items: z.array(z.object({ userId: z.string().uuid(), date: z.iso.date(), cells: cellsSchema, submit: z.boolean() })).max(60),
+  items: z.array(z.object({ userId: z.string().uuid(), date: z.iso.date(), cells: cellsSchema, submit: z.boolean(), pings: z.array(pingSchema).max(300).default([]) })).max(60),
 })
 
 export async function POST(req: Request) {
@@ -24,14 +25,19 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(json)
   if (!parsed.success) return Response.json({ error: 'invalid', detail: 'Payload failed validation' }, { status: 400 })
 
+  const ctx = { ip: await clientIp(), userAgent: await userAgent() }
   const results = []
   for (const item of parsed.data.items) {
     // A queue written by another account on a shared device is never replayed into this account.
     if (item.userId !== user.id) { results.push({ date: item.date, ok: false, permanent: true, error: 'This change belongs to a different account and was discarded.' }); continue }
     const saved = await saveDraft(user, item.date, item.cells)
     if (!saved.ok) { results.push({ date: item.date, ...saved }); continue }
+    // Location: the most recent fix in the batch is the one bound to the submission; the rest are the trail.
+    const sorted = [...item.pings].sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime())
+    const latest = sorted.at(-1) ?? null
+    try { await attachPings(user, item.date, sorted.filter((p) => p.kind !== 'submit'), ctx) } catch { await logSecurity('sync.rejected', { reason: 'pings' }, user.id) }
     if (item.submit) {
-      const sub = await submitEntry(user, item.date)
+      const sub = await submitEntry(user, item.date, latest ? { ...latest, kind: 'submit' } : null, ctx)
       results.push({ date: item.date, ...sub, submitted: sub.ok })
     } else results.push({ date: item.date, ...saved, submitted: false })
   }

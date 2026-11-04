@@ -13,6 +13,7 @@ const NAV: { href: string; label: string; icon: IconName; title: string; hint: s
   { href: '/admin', label: 'Dashboard', icon: 'grid', title: 'Dashboard', hint: 'Coverage, KPIs and trends' },
   { href: '/admin/reports', label: 'Reports', icon: 'table', title: 'Price report', hint: 'Brand × outlet price matrix' },
   { href: '/admin/entries', label: 'Entries', icon: 'bars', title: 'Entries', hint: 'Every capture, by outlet and day' },
+  { href: '/admin/field', label: 'Field map', icon: 'map', title: 'Field map', hint: 'Live promoter locations and trails' },
   { href: '/admin/outlets', label: 'Outlets', icon: 'building', title: 'Outlets', hint: 'Manage outlets and regions' },
   { href: '/admin/promoters', label: 'Promoters', icon: 'user', title: 'Promoters', hint: 'Accounts, PINs and assignments' },
   { href: '/admin/skus', label: 'SKUs & Brands', icon: 'leaf', title: 'SKUs & Brands', hint: 'Pack sizes and the brands under each' },

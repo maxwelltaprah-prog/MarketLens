@@ -57,15 +57,16 @@ export async function getDashboard(f: DashFilters) {
     sku ? db.select({ name: brands.name, total: sql<number>`count(*)::int`, have: sql<number>`count(${entryPrices.price})::int` }).from(entryPrices)
       .innerJoin(entries, eq(entries.id, entryPrices.entryId)).innerJoin(brands, eq(brands.id, entryPrices.brandId))
       .where(and(...entryWhere(f.from, f.to), eq(entryPrices.skuId, sku.id))).groupBy(brands.id, brands.name).orderBy(desc(sql`count(${entryPrices.price})::float / count(*)`)).limit(6) : Promise.resolve([]),
-    db.select({ id: entries.outletId }).from(entries).where(and(eq(entries.status, 'submitted'), eq(entries.entryDate, today))),
+    db.select({ id: entries.outletId, geo: entries.geoStatus }).from(entries).where(and(eq(entries.status, 'submitted'), eq(entries.entryDate, today))),
     db.select({ id: outlets.id, name: outlets.name }).from(outlets).where(eq(outlets.active, true)).orderBy(asc(outlets.name)),
-    db.select({ id: entries.id, date: entries.entryDate, outlet: outlets.name, promoter: users.name, at: entries.submittedAt, status: entries.status,
+    db.select({ id: entries.id, date: entries.entryDate, outlet: outlets.name, promoter: users.name, at: entries.submittedAt, status: entries.status, geo: entries.geoStatus, geoDistance: entries.geoDistanceM,
       filled: sql<number>`(select count(*) from ${entryPrices} p where p.entry_id = ${entries.id} and (p.price is not null or p.not_available))::int` })
       .from(entries).innerJoin(outlets, eq(outlets.id, entries.outletId)).innerJoin(users, eq(users.id, entries.promoterId))
       .orderBy(desc(entries.entryDate), desc(entries.updatedAt)).limit(6),
   ])
 
   const doneIds = new Set(doneToday.map((d) => d.id))
+  const awayToday = doneToday.filter((d) => d.geo === 'away').length
   const reporting = activeOutlets.filter((o) => doneIds.has(o.id)).length
   const pending = activeOutlets.filter((o) => !doneIds.has(o.id))
   const cur = a1?.v == null ? null : Number(a1.v), prev = a0?.v == null ? null : Number(a0.v)
@@ -81,17 +82,18 @@ export async function getDashboard(f: DashFilters) {
     bars: bars.map((b) => ({ name: b.name, v: Number(b.v) })),
     trend: trend.map((t) => ({ d: t.d, v: Number(t.v) })),
     avail: avail.map((a) => ({ name: a.name, pct: a.total ? Math.round((a.have / a.total) * 100) : 0 })),
-    pending, recent,
+    pending, recent, awayToday,
   }
 }
 
-export type EntryListFilters = { from: string; to: string; outletId?: string; status?: 'draft' | 'submitted'; q?: string; page: number }
+export type EntryListFilters = { from: string; to: string; outletId?: string; status?: 'draft' | 'submitted'; geo?: 'ok' | 'away' | 'none' | 'unverified'; q?: string; page: number }
 export const PAGE_SIZE = 12
 
 export function entryWhere(f: Omit<EntryListFilters, 'page'>): SQL {
   const parts: SQL[] = [gte(entries.entryDate, f.from), lte(entries.entryDate, f.to)]
   if (f.outletId) parts.push(eq(entries.outletId, f.outletId))
   if (f.status) parts.push(eq(entries.status, f.status))
+  if (f.geo) parts.push(eq(entries.geoStatus, f.geo))
   if (f.q) parts.push(sql`(${outlets.name} ilike ${'%' + f.q.replace(/[%_\\]/g, '\\$&') + '%'} or ${users.name} ilike ${'%' + f.q.replace(/[%_\\]/g, '\\$&') + '%'})`)
   return and(...parts)!
 }
@@ -100,6 +102,7 @@ export async function listEntries(f: EntryListFilters) {
   const where = entryWhere(f)
   const base = db.select({
     id: entries.id, date: entries.entryDate, outlet: outlets.name, promoter: users.name, at: entries.submittedAt, status: entries.status, locked: entries.lockedAt,
+    geo: entries.geoStatus, geoDistance: entries.geoDistanceM,
     filled: sql<number>`(select count(*) from ${entryPrices} p where p.entry_id = ${entries.id} and (p.price is not null or p.not_available))::int`,
   }).from(entries).innerJoin(outlets, eq(outlets.id, entries.outletId)).innerJoin(users, eq(users.id, entries.promoterId))
   const [rows, [c]] = await Promise.all([

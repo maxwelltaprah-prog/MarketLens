@@ -37,6 +37,22 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
         <Row title="Price variance warning" sub="Warn when a price differs from the 30-day average by more than:">
           <div className="relative w-40"><input className="input pr-9 text-right tabular-nums" type="number" min={1} max={500} step={1} value={s.varianceWarningPct} onChange={(e) => setS({ ...s, varianceWarningPct: Number(e.target.value) })} aria-label="Variance percent" /><span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted">%</span></div></Row>
       </section>
+
+      <section className="card overflow-hidden mt-6">
+        <div className="px-6 py-5"><h2 className="font-semibold text-lg">Location tracking</h2><p className="text-sm text-muted">Where the field team is when they sign in, type prices and submit. Promoters see a clear notice and must allow location on their phone.</p></div>
+        <Row title="Track locations" sub="Record a position at sign-in, on every save and submission, and at regular intervals while the capture screen is open."><Toggle label="Track locations" checked={s.locationTracking} onChange={(v) => setS({ ...s, locationTracking: v })} /></Row>
+        <Row title="Require location to submit" sub="Block submissions when the phone could not provide a position."><Toggle label="Require location" checked={s.requireLocation} onChange={(v) => setS({ ...s, requireLocation: v })} /></Row>
+        <Row title="Geofence radius" sub="Submissions further than this from the outlet pin are flagged “away from outlet”.">
+          <div className="relative w-40"><input className="input pr-9 text-right tabular-nums" type="number" min={50} max={5000} step={10} value={s.geofenceMeters} onChange={(e) => setS({ ...s, geofenceMeters: Number(e.target.value) })} aria-label="Geofence metres" /><span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted">m</span></div></Row>
+        <Row title="Heartbeat interval" sub="How often a position is recorded while the capture screen is open.">
+          <select className="input !w-60" value={s.trackingIntervalSec} onChange={(e) => setS({ ...s, trackingIntervalSec: Number(e.target.value) })}>
+            {[[30, 'Every 30 seconds'], [60, 'Every minute'], [120, 'Every 2 minutes'], [300, 'Every 5 minutes'], [600, 'Every 10 minutes']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select></Row>
+        <Row title="Keep location history for" sub="Older pings are deleted automatically.">
+          <select className="input !w-60" value={s.locationRetentionDays} onChange={(e) => setS({ ...s, locationRetentionDays: Number(e.target.value) })}>
+            {[[30, '30 days'], [90, '90 days'], [180, '6 months'], [365, '1 year']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select></Row>
+      </section>
     </div>
   )
 }

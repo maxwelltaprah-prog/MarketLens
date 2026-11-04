@@ -1,5 +1,5 @@
 import {
-  pgTable, pgEnum, uuid, text, boolean, integer, timestamp, date, numeric, jsonb,
+  pgTable, pgEnum, uuid, text, boolean, integer, timestamp, date, numeric, jsonb, doublePrecision, real,
   primaryKey, uniqueIndex, index,
 } from 'drizzle-orm/pg-core'
 
@@ -10,6 +10,8 @@ export const outlets = pgTable('outlets', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   region: text('region').notNull(),
+  lat: doublePrecision('lat'),          // outlet pin, for geofencing (optional)
+  lng: doublePrecision('lng'),
   active: boolean('active').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [uniqueIndex('outlets_name_uq').on(t.name)])
@@ -61,6 +63,11 @@ export const entries = pgTable('entries', {
   status: entryStatusEnum('status').notNull().default('draft'),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
   lockedAt: timestamp('locked_at', { withTimezone: true }),
+  // Geofence result at submission: 'ok' (within radius), 'away', 'unverified' (outlet has no pin), 'none' (no location shared)
+  geoStatus: text('geo_status'),
+  geoDistanceM: integer('geo_distance_m'),
+  geoLat: doublePrecision('geo_lat'),
+  geoLng: doublePrecision('geo_lng'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -104,3 +111,30 @@ export const loginAttempts = pgTable('login_attempts', {
   success: boolean('success').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('login_attempts_ip_idx').on(t.ip, t.createdAt)])
+
+/** Location pings from the field app: sign-in, autosave, submit and periodic heartbeats while the capture screen is open.
+ * Pruned after `locationRetentionDays` (default 90). */
+export const locationPings = pgTable('location_pings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind').notNull(),                 // login | heartbeat | save | submit
+  lat: doublePrecision('lat').notNull(),
+  lng: doublePrecision('lng').notNull(),
+  accuracyM: real('accuracy_m'),
+  speedMps: real('speed_mps'),
+  headingDeg: real('heading_deg'),
+  altitudeM: real('altitude_m'),
+  outletId: uuid('outlet_id').references(() => outlets.id, { onDelete: 'set null' }),
+  entryId: uuid('entry_id').references(() => entries.id, { onDelete: 'set null' }),
+  distanceM: integer('distance_m'),             // to the outlet pin, when known
+  battery: real('battery'),                     // 0..1 if the device reports it
+  online: boolean('online'),                    // false when captured offline and synced later
+  ip: text('ip'),
+  userAgent: text('user_agent'),
+  capturedAt: timestamp('captured_at', { withTimezone: true }).notNull(),   // device time of the fix
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index('location_pings_user_time_idx').on(t.userId, t.capturedAt),
+  index('location_pings_entry_idx').on(t.entryId),
+  index('location_pings_time_idx').on(t.capturedAt),
+])

@@ -55,16 +55,18 @@ export async function setEntryStateAction(input: unknown): Promise<Result> {
 }
 
 /* ---------------- Outlets ---------------- */
-const outletSchema = z.object({ id: uuid.optional(), name: z.string().trim().min(2).max(80), region: z.string().trim().min(2).max(60), active: z.boolean() })
+const coord = (lim: number) => z.preprocess((v) => (v === '' || v == null ? null : Number(v)), z.number().min(-lim).max(lim).nullable())
+const outletSchema = z.object({ id: uuid.optional(), name: z.string().trim().min(2).max(80), region: z.string().trim().min(2).max(60), active: z.boolean(), lat: coord(90).optional(), lng: coord(180).optional() })
 export async function saveOutletAction(input: unknown): Promise<Result> {
   const admin = await requireUser('admin')
   const p = outletSchema.safeParse(input)
-  if (!p.success) return { ok: false, error: 'Enter an outlet name and region.' }
+  if (!p.success) return { ok: false, error: 'Enter an outlet name and region. Coordinates must be decimal degrees.' }
+  if ((p.data.lat == null) !== (p.data.lng == null)) return { ok: false, error: 'Enter both latitude and longitude, or neither.' }
   try {
     if (p.data.id) {
-      await db.update(outlets).set({ name: p.data.name, region: p.data.region, active: p.data.active }).where(eq(outlets.id, p.data.id))
+      await db.update(outlets).set({ name: p.data.name, region: p.data.region, active: p.data.active, lat: p.data.lat ?? null, lng: p.data.lng ?? null }).where(eq(outlets.id, p.data.id))
       if (!p.data.active) await db.update(users).set({ outletId: null }).where(and(eq(users.outletId, p.data.id), eq(users.role, 'promoter')))
-    } else await db.insert(outlets).values(p.data)
+    } else await db.insert(outlets).values({ name: p.data.name, region: p.data.region, active: p.data.active, lat: p.data.lat ?? null, lng: p.data.lng ?? null })
   } catch (e) { return { ok: false, error: isUnique(e) ? 'An outlet with that name already exists.' : 'Could not save the outlet.' } }
   await audit(admin.id, p.data.id ? 'outlet.update' : 'outlet.create', 'outlet', p.data.id, { name: p.data.name })
   revalidatePath('/admin', 'layout')
@@ -146,15 +148,19 @@ export async function importOutletsAction(text: string): Promise<ImportResult> {
   const admin = await requireUser('admin')
   const rows = cap(parseCsv(String(text).slice(0, 1_000_000)))
   const body = /^name$/i.test(rows[0]?.[0] ?? '') ? rows.slice(1) : rows
-  if (!body.length) return { ok: false, error: 'The file is empty. Expected columns: name,region' }
+  if (!body.length) return { ok: false, error: 'The file is empty. Expected columns: name,region,lat,lng (lat/lng optional)' }
   let created = 0, updated = 0; const skipped: string[] = []
   const existing = new Map((await db.select().from(outlets)).map((o) => [o.name.toLowerCase(), o.id]))
   for (const [i, r] of body.entries()) {
     const [name, region] = [r[0]?.slice(0, 80), r[1]?.slice(0, 60)]
     if (!name || !region) { skipped.push(`Row ${i + 1}: needs name and region`); continue }
+    const lat = r[2] ? Number(r[2]) : null, lng = r[3] ? Number(r[3]) : null
+    const hasPin = lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
+    if ((r[2] || r[3]) && !hasPin) { skipped.push(`Row ${i + 1}: lat/lng must be decimal degrees`); continue }
+    const pin = hasPin ? { lat, lng } : {}
     const id = existing.get(name.toLowerCase())
-    if (id) { await db.update(outlets).set({ region, active: true }).where(eq(outlets.id, id)); updated++ }
-    else { const [o] = await db.insert(outlets).values({ name, region }).returning({ id: outlets.id }); existing.set(name.toLowerCase(), o.id); created++ }
+    if (id) { await db.update(outlets).set({ region, active: true, ...pin }).where(eq(outlets.id, id)); updated++ }
+    else { const [o] = await db.insert(outlets).values({ name, region, ...pin }).returning({ id: outlets.id }); existing.set(name.toLowerCase(), o.id); created++ }
   }
   await audit(admin.id, 'outlet.import', 'outlet', undefined, { created, updated })
   revalidatePath('/admin', 'layout')

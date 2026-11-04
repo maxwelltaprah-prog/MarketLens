@@ -11,7 +11,7 @@
  *  - The page writes unsynced prices into IndexedDB ("outbox"). When the device regains connectivity, the browser
  *    fires the "ml-outbox" sync event even if the app is closed, and we replay the outbox to /api/capture/sync.
  */
-const VERSION = 'v3'
+const VERSION = 'v4'
 const STATIC = `ml-static-${VERSION}`
 const PAGES = `ml-pages-${VERSION}`
 const OFFLINE_URL = '/offline.html'
@@ -78,7 +78,7 @@ async function replayOutbox() {
   const res = await fetch('/api/capture/sync', {
     method: 'POST', credentials: 'same-origin',
     headers: { 'content-type': 'application/json', 'x-requested-with': 'marketlens-sw' },
-    body: JSON.stringify({ items: items.map((i) => ({ userId: i.userId, date: i.date, cells: i.cells, submit: i.submit })) }),
+    body: JSON.stringify({ items: items.map((i) => ({ userId: i.userId, date: i.date, cells: i.cells, submit: i.submit, pings: (i.pings || []).slice(0, 300) })) }),
   })
   if (!res.ok) throw new Error('sync failed ' + res.status)
   const { results } = await res.json()
@@ -92,8 +92,9 @@ async function replayOutbox() {
       const cells = {}
       for (const [k, v] of Object.entries(fresh.cells)) if (!it.cells[k] || JSON.stringify(it.cells[k]) !== JSON.stringify(v)) cells[k] = v
       const submit = r.submitted ? false : fresh.submit
-      if (Object.keys(cells).length === 0 && !submit) await store(db, 'readwrite', (s) => s.delete(it.key))
-      else await store(db, 'readwrite', (s) => s.put({ ...fresh, cells, submit }))
+      const pings = (fresh.pings || []).slice(Math.min(300, (it.pings || []).length))
+      if (Object.keys(cells).length === 0 && !submit && pings.length === 0) await store(db, 'readwrite', (s) => s.delete(it.key))
+      else await store(db, 'readwrite', (s) => s.put({ ...fresh, cells, submit, pings }))
     } else if (r.permanent) await store(db, 'readwrite', (s) => s.delete(it.key))
   }
   const clients = await self.clients.matchAll({ type: 'window' })

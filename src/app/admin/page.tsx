@@ -80,6 +80,13 @@ async function DashboardBody({ f }: { f: Awaited<ReturnType<typeof parseFilters>
             <span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-brand" />Submitted <b className="text-ink">{d.kpi.reporting.v}</b></span>
             <span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-amber" />Pending <b className="text-ink">{d.pending.length}</b></span>
           </div>
+          {d.awayToday > 0 && (
+            <Link href={`/admin/entries?geo=away&from=${d.today}&to=${d.today}`} className="mt-4 flex items-center gap-3 rounded-xl bg-danger-soft p-3 hover:brightness-95 transition">
+              <Icon name="pin" className="text-danger" />
+              <span className="min-w-0 flex-1 leading-tight"><span className="block text-sm font-semibold">{d.awayToday} submitted away from the outlet</span><span className="block text-xs text-danger">Check the location evidence</span></span>
+              <Icon name="chevronR" size={16} />
+            </Link>
+          )}
           {d.pending.length > 0 && (
             <Link href={`/admin/entries?status=draft&from=${d.today}&to=${d.today}`} className="mt-4 flex items-center gap-3 rounded-xl bg-amber-soft p-3 hover:brightness-95 transition">
               <Icon name="building" className="text-amber-ink" />

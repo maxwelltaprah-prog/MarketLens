@@ -6,9 +6,12 @@ import { OfflineBar } from '@/components/offline-bar'
 import { Toaster } from '@/components/toast'
 import { SyncManager } from '@/components/sync-manager'
 import { Avatar } from '@/components/ui'
+import { LocationTracker } from '@/components/location-tracker'
+import { getSettings } from '@/lib/settings'
+import { todayISO } from '@/lib/format'
 
 export default async function CaptureLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireUser('promoter')
+  const [user, settings] = await Promise.all([requireUser('promoter'), getSettings()])
   return (
     <div className="min-h-dvh">
       <OfflineBar />
@@ -29,7 +32,10 @@ export default async function CaptureLayout({ children }: { children: React.Reac
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-4xl px-4 sm:px-6 py-8">{children}</main>
+      <main className="mx-auto max-w-4xl px-4 sm:px-6 py-8">
+        {settings.locationTracking && <LocationTracker userId={user.id} role="promoter" date={todayISO()} intervalSec={settings.trackingIntervalSec} required={settings.requireLocation} outletName={user.outletName} />}
+        {children}
+      </main>
       <SyncManager />
       <Toaster />
     </div>

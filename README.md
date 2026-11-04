@@ -43,9 +43,23 @@ Admin → Reports shows a brand × outlet price matrix: brands down the side (gr
 with min/avg/max/spread per row and an outlet price index (100 = network average). Filter by date range, SKU, brand,
 region or outlet; switch between latest / average / lowest / highest; export CSV or print to PDF.
 
+## 4c. Location tracking
+
+Promoters are asked to share their location in the field app (a clear notice explains why; the phone's permission
+prompt follows). Once allowed, MarketLens records a position at sign-in, whenever prices are typed (at most once a
+minute), at submission, and on a heartbeat while the capture screen is open (default every 2 minutes, configurable).
+Admins record a sign-in position too. Positions captured offline ride along in the outbox and sync later.
+
+- **Field map** (Admin → Field map): last known position of everyone, freshness colouring, today's trail, battery and
+  accuracy, and "Use as outlet pin" to set an outlet's coordinates from where the promoter is standing.
+- **Geofence**: a submission further than the radius (default 300 m) from the outlet pin is flagged *away from outlet*
+  in Entries, on the dashboard and in the entry's location evidence (mini map of all pings for that capture).
+- **Settings**: turn tracking on/off, require a location to submit, radius, heartbeat interval and retention (default 90 days).
+- Browsers cannot report location while the app is closed; tracking only runs while MarketLens is open in the foreground.
+
 ## 5. CSV imports (Admin → Outlets / Promoters / SKUs)
 
-Each import dialog shows the expected header columns and offers a template download. Rows with errors are reported and skipped.
+Outlets accept optional `lat,lng` columns. Each import dialog shows the expected header columns and offers a template download. Rows with errors are reported and skipped.
 
 ## 6. Security
 

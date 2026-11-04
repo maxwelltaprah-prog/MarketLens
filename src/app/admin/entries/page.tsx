@@ -17,6 +17,7 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
   const g = (k: string) => (Array.isArray(sp[k]) ? sp[k]![0] : sp[k])
   const { f, raw } = parseFilters(sp)
   const status = g('status') === 'draft' || g('status') === 'submitted' ? (g('status') as 'draft' | 'submitted') : undefined
+  const geo = (['ok', 'away', 'none', 'unverified'] as const).find((x) => x === g('geo'))
   const q = g('q')?.slice(0, 80)
   const page = Math.max(1, Number.parseInt(g('page') ?? '1', 10) || 1)
   const opts = await getFilterOptions()
@@ -26,11 +27,11 @@ export default async function EntriesPage({ searchParams }: { searchParams: Prom
     <div className="rise">
       <PageHeader eyebrow="Field activity" title="Price entries" sub="Review, correct, lock, and export all submitted price captures."
         action={<a href={`/admin/export?${exportQs}`} className="btn btn-primary"><Icon name="download" size={16} /> Export data</a>} />
-      <FilterBar defaults={{ from: `${today.slice(0, 8)}01`, to: today }} fields={{ outlet: opts.outlets, status: true }} />
+      <FilterBar defaults={{ from: `${today.slice(0, 8)}01`, to: today }} fields={{ outlet: opts.outlets, status: true, extra: [{ k: 'geo', label: 'Location', all: 'Any location', opts: [{ id: 'ok', name: 'At outlet' }, { id: 'away', name: 'Away from outlet' }, { id: 'none', name: 'No location' }, { id: 'unverified', name: 'Outlet not pinned' }] }] }} />
       <div className="card overflow-hidden">
         <div className="p-4"><SearchBox placeholder="Search outlet or promoter" /></div>
-        <Suspense key={JSON.stringify(raw) + status + q + page} fallback={<TableSkeleton rows={6} />}>
-          <Rows f={{ from: f.from, to: f.to, outletId: f.outletId, status, q, page }} />
+        <Suspense key={JSON.stringify(raw) + status + geo + q + page} fallback={<TableSkeleton rows={6} />}>
+          <Rows f={{ from: f.from, to: f.to, outletId: f.outletId, status, geo, q, page }} />
         </Suspense>
       </div>
     </div>
