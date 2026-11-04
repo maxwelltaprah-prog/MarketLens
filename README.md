@@ -56,6 +56,6 @@ and a security monitor in Admin → Settings. Run `npm audit` before each releas
 ## 7. Known caveats
 
 - Seed data comes from the design screenshots. Brands hidden behind "+N more" are seeded as **"Placeholder N"** and promoter phones are placeholders (0200000001–0200000012). Replace via the admin pages or CSV import.
-- Not yet exercised against a live Neon instance or Vercel (tested on local Postgres via PGlite + Playwright).
-- Only per-account lockout; add IP rate limiting (e.g. Vercel Firewall / Upstash) for production.
+- Migrations and seed have run against Neon; the Vercel deployment has not been exercised end-to-end by the author.
+- Background Sync is not available on iOS Safari; there the outbox syncs whenever the app is open.
 - Importing historical *entries* by CSV is not built.
