@@ -1,6 +1,9 @@
 import { desc, eq, like, notLike, sql } from 'drizzle-orm'
 import { db, auditLog, users } from '@/db'
 import { SettingsForm } from '@/components/settings-form'
+import { AdminsManager } from '@/components/admins-manager'
+import { requireUser } from '@/lib/session'
+import { asc } from 'drizzle-orm'
 import { Icon } from '@/components/icons'
 import { cx } from '@/components/ui'
 import { getSettings } from '@/lib/settings'
@@ -15,8 +18,9 @@ const LABEL: Record<string, string> = {
 const severe = (a: string) => /locked|ratelimited|csrf|authz/.test(a)
 
 export default async function Page() {
+  const me = await requireUser('admin')
   const since = new Date(Date.now() - 7 * 86_400_000)
-  const [settings, log, sec, counts] = await Promise.all([
+  const [settings, log, sec, counts, admins] = await Promise.all([
     getSettings(),
     db.select({ id: auditLog.id, action: auditLog.action, at: auditLog.createdAt, who: users.name }).from(auditLog).leftJoin(users, eq(users.id, auditLog.actorId))
       .where(notLike(auditLog.action, 'security.%')).orderBy(desc(auditLog.createdAt)).limit(12),
@@ -24,6 +28,7 @@ export default async function Page() {
       .where(like(auditLog.action, 'security.%')).orderBy(desc(auditLog.createdAt)).limit(25),
     db.select({ action: auditLog.action, n: sql<number>`count(*)::int` }).from(auditLog)
       .where(sql`${auditLog.action} like 'security.%' and ${auditLog.createdAt} > ${since}`).groupBy(auditLog.action),
+    db.select({ id: users.id, name: users.name, email: users.email, active: users.active, lastLoginAt: users.lastLoginAt }).from(users).where(eq(users.role, 'admin')).orderBy(asc(users.name)),
   ])
   const c = (a: string) => counts.find((x) => x.action === a)?.n ?? 0
   const tiles = [
@@ -34,6 +39,7 @@ export default async function Page() {
   return (
     <div className="rise space-y-6">
       <SettingsForm initial={settings} />
+      <AdminsManager admins={admins} meId={me.id} />
 
       <section className="card max-w-3xl overflow-hidden">
         <div className="px-6 py-5 flex items-start justify-between gap-4">

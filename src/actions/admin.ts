@@ -181,6 +181,48 @@ export async function deleteBrandAction(input: unknown): Promise<Result<{ deacti
   return { ok: true, deactivated: false }
 }
 
+/* ---------------- Administrators ---------------- */
+const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%'
+const genPassword = () => Array.from({ length: 14 }, () => ALPHABET[randomInt(0, ALPHABET.length)]).join('')
+const adminSchema = z.object({ id: uuid.optional(), name: z.string().trim().min(2).max(60), email: z.email().max(120), active: z.boolean(), resetPassword: z.boolean().optional() })
+
+/** Create or update an administrator. A new account (or a reset) gets a temporary password that is returned once. */
+export async function saveAdminAction(input: unknown): Promise<Result<{ password?: string }>> {
+  const admin = await requireUser('admin')
+  const p = adminSchema.safeParse(input)
+  if (!p.success) return { ok: false, error: 'Enter a name and a valid work email.' }
+  const email = p.data.email.trim().toLowerCase()
+  const password = !p.data.id || p.data.resetPassword ? genPassword() : undefined
+  try {
+    if (p.data.id) {
+      if (p.data.id === admin.id && !p.data.active) return { ok: false, error: 'You can’t deactivate your own account.' }
+      if (!p.data.active) {
+        const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(users).where(and(eq(users.role, 'admin'), eq(users.active, true), sql`${users.id} <> ${p.data.id}`))
+        if (n === 0) return { ok: false, error: 'At least one active administrator must remain.' }
+      }
+      await db.update(users).set({ name: p.data.name, email, active: p.data.active,
+        ...(password ? { secretHash: await bcrypt.hash(password, 12), failedAttempts: 0, lockedUntil: null } : {}),
+        ...(password || !p.data.active ? { tokenVersion: sql`${users.tokenVersion} + 1` } : {}) }).where(and(eq(users.id, p.data.id), eq(users.role, 'admin')))
+    } else await db.insert(users).values({ role: 'admin', name: p.data.name, email, active: p.data.active, secretHash: await bcrypt.hash(password!, 12) })
+  } catch (e) { return { ok: false, error: isUnique(e) ? 'An account with that email already exists.' : 'Could not save the administrator.' } }
+  await audit(admin.id, p.data.id ? (password ? 'admin.reset_password' : 'admin.update') : 'admin.create', 'user', p.data.id, { email, active: p.data.active })
+  revalidatePath('/admin', 'layout')
+  return { ok: true, password }
+}
+
+/** Change your own password. */
+export async function changeOwnPasswordAction(input: unknown): Promise<Result> {
+  const admin = await requireUser('admin')
+  const p = z.object({ current: z.string().min(1).max(200), next: z.string().min(12).max(200) }).safeParse(input)
+  if (!p.success) return { ok: false, error: 'New password must be at least 12 characters.' }
+  if (/^(.)\1+$/.test(p.data.next) || /^(password|marketlens|olam)/i.test(p.data.next)) return { ok: false, error: 'Choose a stronger password.' }
+  const [u] = await db.select({ hash: users.secretHash }).from(users).where(eq(users.id, admin.id))
+  if (!u || !(await bcrypt.compare(p.data.current, u.hash))) return { ok: false, error: 'Your current password is incorrect.' }
+  await db.update(users).set({ secretHash: await bcrypt.hash(p.data.next, 12) }).where(eq(users.id, admin.id))
+  await audit(admin.id, 'admin.change_password', 'user', admin.id)
+  return { ok: true }
+}
+
 /* ---------------- CSV imports ---------------- */
 export type ImportResult = Result<{ created: number; updated: number; skipped: string[] }>
 const cap = (rows: string[][]) => rows.slice(0, 2001)
