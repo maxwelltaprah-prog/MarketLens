@@ -4,15 +4,16 @@ import { Icon } from './icons'
 
 export function Modal({ open, onClose, title, children, wide }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode; wide?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
+  const close = useRef(onClose); close.current = onClose   // keep the latest handler without re-running the focus effect
   useEffect(() => {
     if (!open) return
     const prev = document.activeElement as HTMLElement | null
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close.current() }
     document.addEventListener('keydown', onKey)
     document.body.style.overflow = 'hidden'
     ref.current?.querySelector<HTMLElement>('input,select,button[type=submit]')?.focus()
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = ''; prev?.focus() }
-  }, [open, onClose])
+  }, [open])  // only when opening/closing; typing inside must never steal focus
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 grid items-end sm:place-items-center bg-forest-deep/50 backdrop-blur-sm sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>

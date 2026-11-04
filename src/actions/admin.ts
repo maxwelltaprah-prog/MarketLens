@@ -4,7 +4,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import bcrypt from 'bcryptjs'
 import { randomInt } from 'node:crypto'
 import { z } from 'zod'
-import { db, entries, entryPrices, outlets, users, skus, brands, skuBrands, settings, auditLog } from '@/db'
+import { db, entries, entryPrices, outlets, users, skus, brands, skuBrands, settings, auditLog, sales } from '@/db'
 import { requireUser } from '@/lib/session'
 import { settingsSchema } from '@/lib/settings'
 import { normalizePhone } from '@/lib/format'
@@ -149,6 +149,36 @@ export async function setBrandTypeAction(input: unknown): Promise<Result> {
   await audit(admin.id, 'brand.type', 'brand', p.data.id, { isCompany: p.data.isCompany })
   revalidatePath('/admin', 'layout'); revalidatePath('/capture', 'layout')
   return { ok: true }
+}
+
+const brandSchema = z.object({ id: uuid, name: z.string().trim().min(1).max(60), isCompany: z.boolean(), active: z.boolean() })
+export async function saveBrandAction(input: unknown): Promise<Result> {
+  const admin = await requireUser('admin')
+  const p = brandSchema.safeParse(input)
+  if (!p.success) return { ok: false, error: 'Enter a brand name (up to 60 characters).' }
+  try { await db.update(brands).set({ name: p.data.name, isCompany: p.data.isCompany, active: p.data.active }).where(eq(brands.id, p.data.id)) }
+  catch (e) { return { ok: false, error: isUnique(e) ? 'A brand with that name already exists.' : 'Could not save the brand.' } }
+  await audit(admin.id, 'brand.update', 'brand', p.data.id, { name: p.data.name, isCompany: p.data.isCompany, active: p.data.active })
+  revalidatePath('/admin', 'layout'); revalidatePath('/capture', 'layout')
+  return { ok: true }
+}
+/** Deletes a brand only when nothing references it; otherwise deactivates it so history stays intact. */
+export async function deleteBrandAction(input: unknown): Promise<Result<{ deactivated: boolean }>> {
+  const admin = await requireUser('admin')
+  const p = z.object({ id: uuid }).safeParse(input)
+  if (!p.success) return { ok: false, error: 'Invalid brand.' }
+  const [{ n }] = await db.select({ n: sql<number>`(select count(*) from ${entryPrices} where brand_id = ${p.data.id})::int + (select count(*) from ${sales} where brand_id = ${p.data.id})::int` }).from(brands).where(eq(brands.id, p.data.id))
+  if (n > 0) {
+    await db.update(brands).set({ active: false }).where(eq(brands.id, p.data.id))
+    await db.delete(skuBrands).where(eq(skuBrands.brandId, p.data.id))
+    await audit(admin.id, 'brand.deactivate', 'brand', p.data.id, { references: n })
+    revalidatePath('/admin', 'layout'); revalidatePath('/capture', 'layout')
+    return { ok: true, deactivated: true }
+  }
+  await db.delete(brands).where(eq(brands.id, p.data.id))
+  await audit(admin.id, 'brand.delete', 'brand', p.data.id)
+  revalidatePath('/admin', 'layout'); revalidatePath('/capture', 'layout')
+  return { ok: true, deactivated: false }
 }
 
 /* ---------------- CSV imports ---------------- */
