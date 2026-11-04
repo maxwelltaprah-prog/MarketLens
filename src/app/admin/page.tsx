@@ -33,15 +33,15 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
 function Delta({ d, light }: { d: number | null; light?: boolean }) {
   if (d == null) return <span className={cx('text-sm', light ? 'text-white/70' : 'text-muted')}>No previous data</span>
   return (
-    <span className="text-sm"><span className={cx('font-semibold', light ? 'text-lime' : d >= 0 ? 'text-brand' : 'text-danger')}>{d >= 0 ? '+' : ''}{d.toFixed(1)}%</span>
+    <span className="text-sm"><span className={cx('font-semibold', light ? 'text-white' : d >= 0 ? 'text-success' : 'text-danger')}>{d >= 0 ? '+' : ''}{d.toFixed(1)}%</span>
       <span className={light ? 'text-white/70' : 'text-muted'}> vs. previous period</span></span>
   )
 }
 
 function Kpi({ icon, label, value, children, hot }: { icon: IconName; label: string; value: string; children: React.ReactNode; hot?: boolean }) {
   return (
-    <div className={cx('rounded-2xl p-5 border transition-transform hover:-translate-y-0.5', hot ? 'bg-brand text-white border-brand shadow-pop' : 'card')}>
-      <div className={cx('grid place-items-center size-10 rounded-xl', hot ? 'bg-white/15 text-white' : 'bg-mint text-brand')}><Icon name={icon} /></div>
+    <div className={cx('rounded-2xl p-5 border transition-transform hover:-translate-y-0.5', hot ? 'bg-brand text-white border-brand shadow-glow' : 'card')}>
+      <div className={cx('grid place-items-center size-10 rounded-xl', hot ? 'bg-white/15 text-white' : 'bg-mint text-brand-ink')}><Icon name={icon} /></div>
       <div className={cx('text-xs mt-5', hot ? 'text-white/75' : 'text-muted')}>{label}</div>
       <div className="text-3xl font-semibold tabular-nums mt-1 tracking-tight">{value}</div>
       <div className="mt-3">{children}</div>
@@ -61,7 +61,7 @@ async function DashboardBody({ f }: { f: Awaited<ReturnType<typeof parseFilters>
     <div className="space-y-4">
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Kpi icon="bars" label="Total submissions" value={d.kpi.submissions.v.toLocaleString()}><Delta d={d.kpi.submissions.d} /></Kpi>
-        <Kpi hot icon="building" label="Reporting today" value={`${d.kpi.reporting.v} / ${d.kpi.reporting.of}`}><span className="text-sm"><span className="font-semibold text-lime">{pct.toFixed(1)}%</span> <span className="text-white/70">of outlets submitted</span></span></Kpi>
+        <Kpi hot icon="building" label="Reporting today" value={`${d.kpi.reporting.v} / ${d.kpi.reporting.of}`}><span className="text-sm"><span className="font-semibold text-white">{pct.toFixed(1)}%</span> <span className="text-white/70">of outlets submitted</span></span></Kpi>
         <Kpi icon="check" label="Price points" value={d.kpi.points.v.toLocaleString()}><Delta d={d.kpi.points.d} /></Kpi>
         <Kpi icon="trend" label={`Avg. ${skuLabel} price`} value={d.kpi.avg.v == null ? '-' : fmt(d.kpi.avg.v)}><Delta d={d.kpi.avg.d} /></Kpi>
       </div>
@@ -106,7 +106,7 @@ async function DashboardBody({ f }: { f: Awaited<ReturnType<typeof parseFilters>
       <section className="card overflow-hidden">
         <div className="p-6 pb-4 flex items-start justify-between gap-4">
           <div><h2 className="font-semibold text-lg">Recent submissions</h2><p className="text-xs text-muted">Latest activity from your field team</p></div>
-          <Link href="/admin/entries" className="text-sm font-semibold text-brand hover:underline">View all</Link>
+          <Link href="/admin/entries" className="text-sm font-semibold text-brand-ink hover:underline">View all</Link>
         </div>
         <EntryTable rows={d.recent} total={total} />
       </section>

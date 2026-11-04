@@ -9,9 +9,11 @@ export const metadata: Metadata = {
   title: { default: 'MarketLens · Price Intelligence', template: '%s · MarketLens' },
   description: 'Field price intelligence: capture shelf prices at every outlet and turn them into decisions.',
   manifest: '/manifest.webmanifest',
+  robots: { index: false, follow: false },
+  icons: { icon: '/brand/icon-192.png', apple: '/brand/apple-icon.png' },
   appleWebApp: { capable: true, title: 'MarketLens', statusBarStyle: 'default' },
 }
-export const viewport: Viewport = { themeColor: '#123e30', width: 'device-width', initialScale: 1, viewportFit: 'cover' }
+export const viewport: Viewport = { themeColor: '#121212', width: 'device-width', initialScale: 1, viewportFit: 'cover' }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

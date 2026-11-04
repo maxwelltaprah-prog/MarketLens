@@ -27,3 +27,14 @@ export function CardsSkeleton({ n = 6 }: { n?: number }) {
 export function ListPageSkeleton({ cards = false }: { cards?: boolean }) {
   return <div><HeaderSkeleton />{cards ? <CardsSkeleton /> : <TableSkeleton />}</div>
 }
+
+export function ReportSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading report" className="space-y-4">
+      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}</div>
+      <div className="card overflow-hidden"><div className="px-5 py-4 border-b border-line"><Skeleton className="h-4 w-40" /></div>
+        <div className="p-4 space-y-2">{Array.from({ length: 9 }).map((_, i) => <Skeleton key={i} className="h-9" />)}</div></div>
+      <div className="grid xl:grid-cols-2 gap-4"><Skeleton className="h-72 rounded-2xl" /><Skeleton className="h-72 rounded-2xl" /></div>
+    </div>
+  )
+}

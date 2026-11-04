@@ -38,7 +38,7 @@ export function AdminEntryEditor({ entryId, catalog, initial, symbol, locked, st
           : <button className="btn btn-outline" disabled={pending || status !== 'submitted'} onClick={() => op('lock')}><Icon name="lock" size={16} /> Lock entry</button>}
         {status === 'submitted' && <button className="btn btn-ghost" disabled={pending} onClick={() => op('reopen')}>Return to draft</button>}
         <div className="ml-auto flex items-center gap-3">
-          {msg && <span role="status" className={cx('text-sm font-medium', msg.ok ? 'text-brand' : 'text-danger')}>{msg.text}</span>}
+          {msg && <span role="status" className={cx('text-sm font-medium', msg.ok ? 'text-brand-ink' : 'text-danger')}>{msg.text}</span>}
           <button className="btn btn-primary" disabled={pending || dirtyCount === 0} onClick={save}>{pending ? 'Saving…' : `Save corrections${dirtyCount ? ` (${dirtyCount})` : ''}`}</button>
         </div>
       </div>
@@ -46,7 +46,7 @@ export function AdminEntryEditor({ entryId, catalog, initial, symbol, locked, st
         {catalog.map((k, idx) => (
           <details key={k.id} open={idx === 0} className="card group overflow-hidden">
             <summary className="flex items-center gap-4 p-4 cursor-pointer list-none [&::-webkit-details-marker]:hidden hover:bg-[#fafbf8]">
-              <span className="grid place-items-center size-11 rounded-xl bg-mint text-brand text-xs font-bold">{k.code}</span>
+              <span className="grid place-items-center size-11 rounded-xl bg-mint text-brand-ink text-xs font-bold">{k.code}</span>
               <span className="flex-1 font-semibold">{k.label}<span className="block text-xs font-normal text-muted">{k.brands.filter((b) => { const c = cells[`${k.id}:${b.id}`]; return c && (c.na || c.price) }).length} of {k.brands.length} captured</span></span>
               <Icon name="chevronD" className="transition-transform group-open:rotate-180" />
             </summary>

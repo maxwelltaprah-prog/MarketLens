@@ -28,16 +28,32 @@ Next.js 16 (App Router) · React 19 · Tailwind v4 · Drizzle ORM · Neon Postgr
 - Promoters: phone number + PIN. Admins: email + password.
 - Accounts lock temporarily after repeated failures. Admins can reset PINs from the Promoters page (the new PIN is shown once).
 
-## 4. Offline behaviour
+## 4. Offline-first
 
-Entries autosave locally and sync when back online. Submitting while offline queues the submit.
-Previously opened capture pages load from cache. Admin pages need a connection.
+Promoters can work with no signal at all. Every edit is written to an on-device outbox (IndexedDB) first, then synced:
+- the page retries every 20 s, on reconnect and when the app regains focus;
+- the service worker replays the outbox with Background Sync even if the app is closed (Chrome/Android);
+- the promoter pages are cached on sign-in so the app opens offline; the cache is wiped on sign-out.
+A black strip shows how many changes are waiting, and a toast confirms when queued submissions are delivered.
+Admin pages need a connection.
+
+## 4b. Reports
+
+Admin → Reports shows a brand × outlet price matrix: brands down the side (grouped by pack size), outlets across the top,
+with min/avg/max/spread per row and an outlet price index (100 = network average). Filter by date range, SKU, brand,
+region or outlet; switch between latest / average / lowest / highest; export CSV or print to PDF.
 
 ## 5. CSV imports (Admin → Outlets / Promoters / SKUs)
 
 Each import dialog shows the expected header columns and offers a template download. Rows with errors are reported and skipped.
 
-## 6. Known caveats
+## 6. Security
+
+See `SECURITY.md` for the full review. Highlights: `__Host-` HttpOnly SameSite=Strict session cookie, nonce-based CSP,
+HSTS, database-backed sign-in rate limiting plus account lockout, per-user session revocation, parameterised queries,
+and a security monitor in Admin → Settings. Run `npm audit` before each release.
+
+## 7. Known caveats
 
 - Seed data comes from the design screenshots. Brands hidden behind "+N more" are seeded as **"Placeholder N"** and promoter phones are placeholders (0200000001–0200000012). Replace via the admin pages or CSV import.
 - Not yet exercised against a live Neon instance or Vercel (tested on local Postgres via PGlite + Playwright).

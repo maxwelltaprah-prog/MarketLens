@@ -1,9 +1,10 @@
 import 'server-only'
 import Link from 'next/link'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq, lt } from 'drizzle-orm'
 import { entries } from '@/db'
 import { Icon } from '@/components/icons'
 import { StatusPill } from '@/components/ui'
+import { InstallPrompt } from '@/components/install-prompt'
 import { CaptureGrid, type CellMap } from '@/components/capture-grid'
 import { getAverages, getCatalog } from '@/lib/catalog'
 import { canEdit, getEntryWithPrices } from '@/lib/entries'
@@ -16,9 +17,10 @@ export async function CaptureView({ user, date, mode }: { user: CurrentUser; dat
   if (!user.outletId)
     return <div className="card p-8 text-center"><h1 className="text-2xl font-medium">No outlet assigned</h1><p className="text-muted mt-2">Ask your administrator to assign you to an outlet so you can start capturing prices.</p></div>
 
-  const [catalog, settings, averages, existing] = await Promise.all([
+  const [catalog, settings, averages, existing, previous] = await Promise.all([
     getCatalog(), getSettings(), getAverages(),
     getEntryWithPrices(and(eq(entries.outletId, user.outletId), eq(entries.entryDate, date))),
+    mode === 'today' ? getLastSubmitted(user.outletId, date) : Promise.resolve(null),
   ])
   const status = existing ? existing.entry.status : 'new'
   const editable = canEdit(existing?.entry ?? null, settings)
@@ -30,6 +32,7 @@ export async function CaptureView({ user, date, mode }: { user: CurrentUser; dat
 
   return (
     <div className="rise">
+      {mode === 'today' && <InstallPrompt />}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="eyebrow">Price capture</div>
@@ -51,8 +54,14 @@ export async function CaptureView({ user, date, mode }: { user: CurrentUser; dat
       </div>
 
       <CaptureGrid userId={user.id} date={date} catalog={catalog} initial={initial} averages={averages}
+        previous={previous?.prices ?? null} previousDate={previous?.entry.entryDate ?? null}
         symbol={currencySymbol(settings.currency)} variancePct={settings.varianceWarningPct}
         status={status} editable={editable} lockedNote={lockedNote} />
     </div>
   )
+}
+
+/** Most recent submitted capture for this outlet before `date` (used for one-tap prefill). */
+async function getLastSubmitted(outletId: string, date: string) {
+  return getEntryWithPrices(and(eq(entries.outletId, outletId), eq(entries.status, 'submitted'), lt(entries.entryDate, date)), desc(entries.entryDate))
 }

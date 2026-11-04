@@ -88,7 +88,7 @@ export async function savePromoterAction(input: unknown): Promise<Result<{ pin?:
   try {
     const base = { name: p.data.name, phone, outletId: p.data.outletId, active: p.data.active }
     if (p.data.id) {
-      await db.update(users).set({ ...base, ...(pin ? { secretHash: await bcrypt.hash(pin, 10), failedAttempts: 0, lockedUntil: null } : {}) })
+      await db.update(users).set({ ...base, ...(pin ? { secretHash: await bcrypt.hash(pin, 10), failedAttempts: 0, lockedUntil: null } : {}), ...(pin || !p.data.active ? { tokenVersion: sql`${users.tokenVersion} + 1` } : {}) })
         .where(and(eq(users.id, p.data.id), eq(users.role, 'promoter')))
     } else await db.insert(users).values({ ...base, role: 'promoter', secretHash: await bcrypt.hash(pin!, 10) })
   } catch (e) { return { ok: false, error: isUnique(e) ? 'That mobile number is already in use.' : 'Could not save the promoter.' } }
@@ -177,7 +177,7 @@ export async function importPromotersAction(text: string): Promise<ImportResult>
     if (outletName && !outletId) { skipped.push(`Row ${i + 1}: outlet “${outletName}” not found`); continue }
     const id = existing.get(phone)
     if (id) {
-      await db.update(users).set({ name: name.slice(0, 60), outletId: outletId ?? null, ...(pin && /^\d{4,8}$/.test(pin) ? { secretHash: await bcrypt.hash(pin, 10) } : {}) }).where(eq(users.id, id)); updated++
+      await db.update(users).set({ name: name.slice(0, 60), outletId: outletId ?? null, ...(pin && /^\d{4,8}$/.test(pin) ? { secretHash: await bcrypt.hash(pin, 10), tokenVersion: sql`${users.tokenVersion} + 1` } : {}) }).where(eq(users.id, id)); updated++
     } else {
       if (!/^\d{4,8}$/.test(pin ?? '')) { skipped.push(`Row ${i + 1}: new promoters need a 4 to 8 digit PIN`); continue }
       const [u] = await db.insert(users).values({ role: 'promoter', name: name.slice(0, 60), phone, outletId: outletId ?? null, secretHash: await bcrypt.hash(pin, 10) }).returning({ id: users.id })

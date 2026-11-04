@@ -2,6 +2,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { savePromoterAction, importPromotersAction } from '@/actions/admin'
+import { toast } from './toast'
 import { Icon } from './icons'
 import { Modal, Toggle } from './modal'
 import { ImportButton } from './import-dialog'
@@ -21,7 +22,7 @@ export function PromotersManager({ promoters, outlets }: { promoters: P[]; outle
   const save = (e: React.FormEvent) => { e.preventDefault(); setErr(null)
     start(async () => {
       const r = await savePromoterAction({ id: edit?.id, name: edit?.name ?? '', phone: edit?.phone ?? '', outletId: edit?.outletId || null, active: edit?.active ?? true, pin: edit?.pin ?? '', generatePin: !!edit?.generatePin })
-      if (r.ok) { if (r.pin) setIssued({ name: edit?.name ?? '', pin: r.pin }); setEdit(null); router.refresh() } else setErr(r.error)
+      if (r.ok) { if (r.pin) setIssued({ name: edit?.name ?? '', pin: r.pin }); setEdit(null); router.refresh(); toast(edit?.id ? 'Promoter updated' : 'Promoter added', r.pin ? { body: 'A new PIN was issued. Any existing sessions were signed out.' } : {}) } else setErr(r.error)
     }) }
   return (
     <>
@@ -70,7 +71,7 @@ export function PromotersManager({ promoters, outlets }: { promoters: P[]; outle
 
       <Modal open={!!issued} onClose={() => setIssued(null)} title="PIN generated">
         <p className="text-sm text-muted">Share this PIN with <b className="text-ink">{issued?.name}</b> now. For security it won’t be shown again.</p>
-        <div className="my-5 rounded-2xl bg-mint text-brand text-center text-4xl font-semibold tracking-[0.3em] py-6 tabular-nums select-all">{issued?.pin}</div>
+        <div className="my-5 rounded-2xl bg-mint text-brand-ink text-center text-4xl font-semibold tracking-[0.3em] py-6 tabular-nums select-all">{issued?.pin}</div>
         <button className="btn btn-primary w-full" onClick={() => setIssued(null)}>Done</button>
       </Modal>
     </>

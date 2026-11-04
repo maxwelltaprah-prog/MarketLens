@@ -17,7 +17,7 @@ export function SyncPill() {
   }, [])
   const color = s === 'saved' ? 'bg-emerald-500' : s === 'offline' || s === 'error' ? 'bg-amber' : 'bg-brand-soft animate-pulse'
   return (
-    <span className="inline-flex items-center gap-2 text-xs font-semibold text-brand" role="status">
+    <span className="inline-flex items-center gap-2 text-xs font-semibold text-brand-ink" role="status">
       <span className={cx('size-2 rounded-full', color)} />{LABEL[s]}
     </span>
   )

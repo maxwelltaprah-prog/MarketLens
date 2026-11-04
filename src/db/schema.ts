@@ -26,6 +26,7 @@ export const users = pgTable('users', {
   failedAttempts: integer('failed_attempts').notNull().default(0),
   lockedUntil: timestamp('locked_until', { withTimezone: true }),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
+  tokenVersion: integer('token_version').notNull().default(0), // bump to revoke every session for this user
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex('users_email_uq').on(t.email),
@@ -94,3 +95,12 @@ export const auditLog = pgTable('audit_log', {
   meta: jsonb('meta'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index('audit_created_idx').on(t.createdAt)])
+
+/** Sign-in attempts by IP, for cross-instance rate limiting on Vercel. Pruned automatically. */
+export const loginAttempts = pgTable('login_attempts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  ip: text('ip').notNull(),
+  identifier: text('identifier'),
+  success: boolean('success').notNull().default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index('login_attempts_ip_idx').on(t.ip, t.createdAt)])

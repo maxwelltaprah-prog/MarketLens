@@ -75,3 +75,26 @@ export function Meter({ name, pct }: { name: string; pct: number }) {
 function NoData({ text = 'No data for these filters yet.' }: { text?: string }) {
   return <div className="h-48 grid place-items-center text-sm text-muted text-center px-6">{text}</div>
 }
+
+/** Horizontal bars, sorted as given. Good for ranking brands or outlets. */
+export function HBarChart({ data, fmt, highlight }: { data: { name: string; v: number }[]; fmt: (n: number) => string; highlight?: 'low' | 'high' }) {
+  if (!data.length) return <NoData />
+  const max = Math.max(...data.map((d) => d.v)) || 1
+  const min = Math.min(...data.map((d) => d.v))
+  return (
+    <ul className="space-y-2.5">
+      {data.map((d, i) => {
+        const hot = highlight === 'low' ? d.v === min : highlight === 'high' ? d.v === max : false
+        return (
+          <li key={d.name} className="grid grid-cols-[7.5rem_1fr_auto] items-center gap-3 text-sm">
+            <span className="truncate font-medium" title={d.name}>{d.name}</span>
+            <span className="h-3 rounded-full bg-surface-2 overflow-hidden">
+              <span className={cx('block h-full rounded-full grow-x', hot ? 'bg-brand' : 'bg-forest/80')} style={{ width: `${(d.v / max) * 100}%`, animationDelay: `${i * 40}ms` }} />
+            </span>
+            <span className={cx('tabular-nums text-xs font-semibold w-20 text-right', hot && 'text-brand-ink')}>{fmt(d.v)}</span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}

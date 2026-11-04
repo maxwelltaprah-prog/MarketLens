@@ -2,6 +2,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveOutletAction, importOutletsAction } from '@/actions/admin'
+import { toast } from './toast'
 import { Icon } from './icons'
 import { Modal, Toggle } from './modal'
 import { ImportButton } from './import-dialog'
@@ -17,7 +18,7 @@ export function OutletsManager({ outlets }: { outlets: Outlet[] }) {
   const [pending, start] = useTransition()
   const list = useMemo(() => outlets.filter((o) => `${o.name} ${o.region}`.toLowerCase().includes(q.toLowerCase())), [outlets, q])
   const save = (e: React.FormEvent) => { e.preventDefault(); setErr(null)
-    start(async () => { const r = await saveOutletAction({ id: edit?.id, name: edit?.name ?? '', region: edit?.region ?? '', active: edit?.active ?? true }); if (r.ok) { setEdit(null); router.refresh() } else setErr(r.error) }) }
+    start(async () => { const r = await saveOutletAction({ id: edit?.id, name: edit?.name ?? '', region: edit?.region ?? '', active: edit?.active ?? true }); if (r.ok) { setEdit(null); router.refresh(); toast(edit?.id ? 'Outlet updated' : 'Outlet added') } else setErr(r.error) }) }
   return (
     <>
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
@@ -33,7 +34,7 @@ export function OutletsManager({ outlets }: { outlets: Outlet[] }) {
           <ul className="grid md:grid-cols-2 [&>li]:border-b [&>li]:border-line md:[&>li:nth-child(odd)]:border-r">
             {list.map((o) => (
               <li key={o.id} className="flex items-center gap-4 p-4 hover:bg-[#fafbf8] transition-colors">
-                <span className="grid place-items-center size-11 rounded-xl bg-mint text-brand shrink-0"><Icon name="building" /></span>
+                <span className="grid place-items-center size-11 rounded-xl bg-mint text-brand-ink shrink-0"><Icon name="building" /></span>
                 <div className="min-w-0 flex-1"><div className="font-semibold truncate">{o.name}</div><div className="text-xs text-muted">{o.region}</div></div>
                 <StatusPill status={o.active ? 'active' : 'inactive'} />
                 <button className="icon-btn" aria-label={`Edit ${o.name}`} onClick={() => { setErr(null); setEdit(o) }}><Icon name="edit" size={16} /></button>

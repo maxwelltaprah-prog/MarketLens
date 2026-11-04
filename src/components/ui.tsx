@@ -32,7 +32,7 @@ export function PageHeader({ eyebrow, title, sub, action }: { eyebrow: string; t
 export function Empty({ icon = 'search', title, hint }: { icon?: IconName; title: string; hint?: string }) {
   return (
     <div className="py-14 text-center">
-      <div className="mx-auto mb-3 grid place-items-center size-12 rounded-2xl bg-mint text-brand"><Icon name={icon} size={22} /></div>
+      <div className="mx-auto mb-3 grid place-items-center size-12 rounded-2xl bg-mint text-brand-ink"><Icon name={icon} size={22} /></div>
       <div className="font-medium">{title}</div>
       {hint && <div className="text-sm text-muted mt-1">{hint}</div>}
     </div>
@@ -51,6 +51,6 @@ export function Field({ label, hint, error, children }: { label: string; hint?: 
 }
 
 export function Avatar({ text, tone = 'mint' }: { text: string; tone?: 'mint' | 'dark' | 'sand' }) {
-  const t = { mint: 'bg-mint text-brand', dark: 'bg-brand text-white', sand: 'bg-[#f3e3b3] text-forest' }[tone]
+  const t = { mint: 'bg-mint text-brand-ink', dark: 'bg-brand text-white', sand: 'bg-[#f3e3b3] text-forest' }[tone]
   return <div className={cx('grid place-items-center rounded-full size-9 text-xs font-bold shrink-0', t)}>{text.slice(0, 2).toUpperCase()}</div>
 }

@@ -1,13 +1,13 @@
 import 'server-only'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, type SQL } from 'drizzle-orm'
 import { db, entries, entryPrices, outlets, users } from '@/db'
 import type { AppSettings } from './settings'
 
 export type PriceCell = { price: string; na: boolean }
 export type PriceMap = Record<string, PriceCell>
 
-export async function getEntryWithPrices(where: ReturnType<typeof and>) {
-  const [entry] = await db.select().from(entries).where(where).limit(1)
+export async function getEntryWithPrices(where: ReturnType<typeof and>, order: SQL = desc(entries.entryDate)) {
+  const [entry] = await db.select().from(entries).where(where).orderBy(order).limit(1)
   if (!entry) return null
   const rows = await db.select().from(entryPrices).where(eq(entryPrices.entryId, entry.id))
   const map: PriceMap = {}

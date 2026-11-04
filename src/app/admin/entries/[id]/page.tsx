@@ -23,7 +23,7 @@ export default async function EntryDetail({ params }: { params: Promise<{ id: st
   const e = data.entry
   return (
     <div className="rise">
-      <Link href="/admin/entries" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand mb-4 hover:underline"><Icon name="chevronR" size={14} className="rotate-180" /> All entries</Link>
+      <Link href="/admin/entries" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-ink mb-4 hover:underline"><Icon name="chevronR" size={14} className="rotate-180" /> All entries</Link>
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div>
           <div className="eyebrow">Price entry</div>

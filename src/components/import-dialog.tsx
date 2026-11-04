@@ -28,14 +28,14 @@ export function ImportButton({ label = 'Import', title, columns, example, action
       <button className="btn btn-outline" onClick={() => { setRes(null); setOpen(true) }}><Icon name="upload" size={16} /> {label}</button>
       <Modal open={open} onClose={() => setOpen(false)} title={title}>
         <p className="text-sm text-muted">Upload a CSV file with these columns: <code className="bg-canvas rounded px-1.5 py-0.5 text-ink">{columns}</code>. Existing records are updated, new ones are created.</p>
-        <button className="text-sm font-semibold text-brand mt-2 hover:underline" onClick={sample}>Download a template</button>
+        <button className="text-sm font-semibold text-brand-ink mt-2 hover:underline" onClick={sample}>Download a template</button>
         <label className="mt-5 grid place-items-center gap-2 rounded-2xl border-2 border-dashed border-line hover:border-brand-soft hover:bg-mint/40 transition-colors cursor-pointer p-8 text-center">
-          <Icon name="upload" size={24} className="text-brand" />
+          <Icon name="upload" size={24} className="text-brand-ink" />
           <span className="font-semibold text-sm">{pending ? 'Importing…' : 'Choose a CSV file'}</span>
           <input type="file" accept=".csv,text/csv" className="sr-only" disabled={pending} onChange={(e) => { void run(e.target.files?.[0]); e.target.value = '' }} />
         </label>
         {res && (res.ok ? (
-          <div className="mt-4 rounded-xl bg-mint text-brand text-sm p-3" role="status">
+          <div className="mt-4 rounded-xl bg-mint text-brand-ink text-sm p-3" role="status">
             <b>Done.</b> {res.created} created, {res.updated} updated{res.skipped.length ? `, ${res.skipped.length} skipped` : ''}.
             {res.skipped.length > 0 && <ul className="mt-2 text-amber-ink list-disc pl-5 space-y-0.5">{res.skipped.map((s) => <li key={s}>{s}</li>)}</ul>}
           </div>

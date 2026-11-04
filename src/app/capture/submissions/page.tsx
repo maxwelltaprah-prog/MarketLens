@@ -41,7 +41,7 @@ export default async function SubmissionsPage() {
           const label = r.date === today ? 'Today' : r.date === addDaysISO(today, -1) ? 'Yesterday' : d.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })
           return (
             <Link key={r.id} href={`/capture/submissions/${r.id}`} className="flex items-center gap-4 p-4 hover:bg-[#fafbf8] transition-colors first:rounded-t-2xl last:rounded-b-2xl">
-              <div className="grid place-items-center size-12 rounded-xl bg-mint text-brand leading-none text-center shrink-0">
+              <div className="grid place-items-center size-12 rounded-xl bg-mint text-brand-ink leading-none text-center shrink-0">
                 <div><div className="text-lg font-bold">{d.toLocaleDateString('en-GB', { day: '2-digit', timeZone: 'UTC' })}</div>
                 <div className="text-[0.6rem] font-semibold tracking-wider">{d.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' }).toUpperCase()}</div></div>
               </div>

@@ -2,6 +2,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveSettingsAction } from '@/actions/admin'
+import { toast } from './toast'
 import { Icon } from './icons'
 import { Toggle } from './modal'
 import type { AppSettings } from '@/lib/settings'
@@ -14,7 +15,7 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null)
   const [pending, start] = useTransition()
   const dirty = JSON.stringify(s) !== JSON.stringify(initial)
-  const save = () => start(async () => { const r = await saveSettingsAction(s); setMsg(r.ok ? { ok: true, t: 'Settings saved.' } : { ok: false, t: r.error }); if (r.ok) router.refresh() })
+  const save = () => start(async () => { const r = await saveSettingsAction(s); setMsg(r.ok ? { ok: true, t: 'Settings saved.' } : { ok: false, t: r.error }); if (r.ok) { router.refresh(); toast('Settings saved') } })
   const Row = ({ title, sub, children }: { title: string; sub: string; children: React.ReactNode }) => (
     <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 border-t border-line"><div className="min-w-0"><div className="font-semibold text-sm">{title}</div><div className="text-sm text-muted">{sub}</div></div>{children}</div>
   )
@@ -22,7 +23,7 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
     <div className="max-w-3xl">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div><div className="eyebrow">Workspace</div><h1 className="text-3xl md:text-4xl font-medium mt-1">Settings</h1><p className="text-muted text-sm mt-2">Configure capture rules and workspace defaults.</p></div>
-        <div className="flex items-center gap-3">{msg && <span role="status" className={`text-sm font-medium ${msg.ok ? 'text-brand' : 'text-danger'}`}>{msg.t}</span>}
+        <div className="flex items-center gap-3">{msg && <span role="status" className={`text-sm font-medium ${msg.ok ? 'text-brand-ink' : 'text-danger'}`}>{msg.t}</span>}
           <button className="btn btn-primary" disabled={pending || !dirty} onClick={save}><Icon name="check" size={16} />{pending ? 'Saving…' : 'Save changes'}</button></div>
       </div>
       <section className="card overflow-hidden">

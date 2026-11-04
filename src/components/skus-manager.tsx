@@ -2,6 +2,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveSkuAction, importSkusAction } from '@/actions/admin'
+import { toast } from './toast'
 import { Icon } from './icons'
 import { Modal, Toggle } from './modal'
 import { ImportButton } from './import-dialog'
@@ -22,7 +23,7 @@ export function SkusManager({ skus, brands }: { skus: Sku[]; brands: Brand[] }) 
   const toggleBrand = (id: string) => setEdit((d) => d && ({ ...d, brandIds: d.brandIds.includes(id) ? d.brandIds.filter((x) => x !== id) : [...d.brandIds, id] }))
   const addNew = () => { const v = nb.trim(); if (!v) return; setEdit((d) => d && !d.newBrands.includes(v) ? { ...d, newBrands: [...d.newBrands, v] } : d); setNb('') }
   const save = (e: React.FormEvent) => { e.preventDefault(); setErr(null)
-    start(async () => { const r = await saveSkuAction(edit); if (r.ok) { setEdit(null); router.refresh() } else setErr(r.error) }) }
+    start(async () => { const r = await saveSkuAction(edit); if (r.ok) { setEdit(null); router.refresh(); toast('Saved') } else setErr(r.error) }) }
   return (
     <>
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
@@ -36,7 +37,7 @@ export function SkusManager({ skus, brands }: { skus: Sku[]; brands: Brand[] }) 
         {skus.map((k) => (
           <article key={k.id} className={cx('card p-5 hover:shadow-pop transition-shadow', !k.active && 'opacity-60')}>
             <div className="flex items-center gap-4">
-              <span className="grid place-items-center size-12 rounded-xl bg-mint text-brand text-xs font-bold">{k.code}</span>
+              <span className="grid place-items-center size-12 rounded-xl bg-mint text-brand-ink text-xs font-bold">{k.code}</span>
               <div className="flex-1 min-w-0"><div className="font-semibold">{k.label}{!k.active && <span className="pill pill-off ml-2">Inactive</span>}</div><div className="text-xs text-muted">{k.brandIds.length} active brands</div></div>
               <button className="icon-btn" aria-label={`Edit ${k.label}`} onClick={() => { setErr(null); setEdit({ ...k, newBrands: [] }) }}><Icon name="edit" size={16} /></button>
             </div>

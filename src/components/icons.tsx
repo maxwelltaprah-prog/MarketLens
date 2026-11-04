@@ -27,6 +27,22 @@ const P: Record<string, string> = {
   alert: 'M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z',
   lock: 'M7 11V7a5 5 0 0 1 10 0v4M5 11h14a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1z',
   key: 'M21 2l-2 2m-7.6 7.6a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3',
+  table: 'M3 5h18v14H3zM3 10h18M3 15h18M9 5v14M15 5v14',
+  command: 'M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z',
+  refresh: 'M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6',
+  cloud: 'M17.5 19a4.5 4.5 0 0 0 .5-9 7 7 0 0 0-13.5 2A4 4 0 0 0 6 19z',
+  cloudOff: 'M2 2l20 20M17.5 19H6a4 4 0 0 1-1.5-7.7M9 5.3A7 7 0 0 1 18 10a4.5 4.5 0 0 1 3.5 6.2',
+  copy: 'M9 9h11v11H9zM5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1',
+  print: 'M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v7H6z',
+  filter: 'M22 3H2l8 9.5V19l4 2v-8.5z',
+  sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 17l.8 2.2L22 20l-2.2.8L19 23l-.8-2.2L16 20l2.2-.8z',
+  chevronL: 'M15 18l-6-6 6-6',
+  chevronU: 'M18 15l-6-6-6 6',
+  info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01',
+  bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0',
+  mobile: 'M7 2h10a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM12 18h.01',
+  home: 'M3 10l9-7 9 7v10a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z',
+  history: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2',
 }
 export type IconName = keyof typeof P
 
@@ -39,16 +55,18 @@ export function Icon({ name, size = 18, ...rest }: { name: IconName; size?: numb
   )
 }
 
-export function Logo({ size = 40, dark = false }: { size?: number; dark?: boolean }) {
+/* eslint-disable @next/next/no-img-element */
+/** Olam Agri logo lockup. `dark` renders the white wordmark for dark surfaces. */
+export function Logo({ size = 40, dark = false, compact = false }: { size?: number; dark?: boolean; compact?: boolean }) {
+  const h = Math.round(size * 0.66)
+  if (compact) return <img src="/brand/mark.png" alt="Olam Agri" width={size} height={size} style={{ width: size, height: size }} />
   return (
     <div className="flex items-center gap-3">
-      <div className="grid place-items-center rounded-xl" style={{ width: size, height: size, background: dark ? 'var(--color-brand)' : 'var(--color-lime)', color: dark ? '#fff' : 'var(--color-forest)' }}>
-        <Icon name="leaf" size={size * 0.5} />
-      </div>
-      <div className="leading-tight">
-        <div className={`font-semibold text-lg ${dark ? 'text-ink' : 'text-white'}`}>MarketLens</div>
-        <div className={`text-[0.6rem] tracking-[0.2em] font-medium ${dark ? 'text-muted' : 'text-white/60'}`}>PRICE INTELLIGENCE</div>
-      </div>
+      <img src={dark ? '/brand/logo-dark.png' : '/brand/logo.png'} alt="Olam Agri" width={Math.round(h * 3.92)} height={h} style={{ height: h, width: 'auto' }} />
+      <span className={`hidden sm:block border-l pl-3 leading-tight ${dark ? 'border-white/20' : 'border-line'}`}>
+        <span className={`block text-sm font-semibold ${dark ? 'text-white' : 'text-ink'}`}>MarketLens</span>
+        <span className={`block text-[0.58rem] tracking-[0.18em] font-semibold ${dark ? 'text-white/55' : 'text-muted'}`}>PRICE INTELLIGENCE</span>
+      </span>
     </div>
   )
 }

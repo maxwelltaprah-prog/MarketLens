@@ -5,7 +5,7 @@ import { Icon } from './icons'
 import { cx } from './ui'
 
 type Opt = { id: string; name: string }
-export type FilterFields = { outlet?: Opt[]; sku?: Opt[]; brand?: (Opt & { skuId?: string })[]; status?: boolean }
+export type FilterFields = { outlet?: Opt[]; sku?: Opt[]; brand?: (Opt & { skuId?: string })[]; status?: boolean; extra?: { k: string; label: string; opts: Opt[]; all?: string }[] }
 
 export function useParams() {
   const router = useRouter(), path = usePathname(), sp = useSearchParams()
@@ -28,19 +28,20 @@ export function FilterBar({ fields, defaults }: { fields: FilterFields; defaults
   const skuSel = sp.get('sku') ?? ''
   const brandOpts = (fields.brand ?? []).filter((b) => !skuSel || b.skuId === skuSel)
   const dedup = [...new Map(brandOpts.map((b) => [b.id, b])).values()]
-  const Select = ({ k, label, opts }: { k: string; label: string; opts: Opt[] }) => (
+  const active = ['outlet', 'sku', 'brand', 'status', 'region', ...(fields.extra ?? []).map((x) => x.k)].filter((k) => sp.get(k)).length
+  const Select = ({ k, label, opts, all }: { k: string; label: string; opts: Opt[]; all?: string }) => (
     <div className="relative border-l border-line first:border-0">
-      <select aria-label={label} className={sel} value={sp.get(k) ?? ''} onChange={(e) => set({ [k]: e.target.value || null, ...(k === 'sku' ? { brand: null } : {}) })}>
-        <option value="">All {label.toLowerCase()}s</option>
+      <select aria-label={label} className={cx(sel, sp.get(k) && 'text-brand-ink font-semibold')} value={sp.get(k) ?? ''} onChange={(e) => set({ [k]: e.target.value || null, ...(k === 'sku' ? { brand: null } : {}) })}>
+        <option value="">{all ?? `All ${label.toLowerCase()}s`}</option>
         {opts.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
       </select>
       <Icon name="chevronD" size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-ink" />
     </div>
   )
   return (
-    <div className={cx('card mb-6 flex flex-wrap items-center gap-x-1 gap-y-2 p-2 transition-opacity', pending && 'opacity-60')}>
+    <div className={cx('no-print card mb-6 flex flex-wrap items-center gap-x-1 gap-y-2 p-2 transition-opacity', pending && 'opacity-60')}>
       <div className="flex items-center gap-2 pl-3 pr-2 text-sm font-medium">
-        <Icon name="calendar" size={16} className="text-brand" />
+        <Icon name="calendar" size={16} className="text-brand-ink" />
         <input type="date" aria-label="From" className="bg-transparent outline-none min-h-11 text-sm w-[8.2rem]" value={from} max={to} onChange={(e) => e.target.value && set({ from: e.target.value })} />
         <span className="text-muted">to</span>
         <input type="date" aria-label="To" className="bg-transparent outline-none min-h-11 text-sm w-[8.2rem]" value={to} min={from} onChange={(e) => e.target.value && set({ to: e.target.value })} />
@@ -48,6 +49,7 @@ export function FilterBar({ fields, defaults }: { fields: FilterFields; defaults
       {fields.outlet && <Select k="outlet" label="Outlet" opts={fields.outlet} />}
       {fields.sku && <Select k="sku" label="SKU" opts={fields.sku} />}
       {fields.brand && <Select k="brand" label="Brand" opts={dedup} />}
+      {(fields.extra ?? []).map((x) => <Select key={x.k} k={x.k} label={x.label} opts={x.opts} all={x.all} />)}
       {fields.status && (
         <div className="relative border-l border-line">
           <select aria-label="Status" className={sel} value={sp.get('status') ?? ''} onChange={(e) => set({ status: e.target.value || null })}>
@@ -56,7 +58,9 @@ export function FilterBar({ fields, defaults }: { fields: FilterFields; defaults
           <Icon name="chevronD" size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
         </div>
       )}
-      <button onClick={clear} className="ml-auto px-3 py-2 text-sm font-semibold text-brand hover:underline">Clear</button>
+      <button onClick={clear} className="ml-auto px-3 py-2 text-sm font-semibold text-brand-ink hover:underline flex items-center gap-1.5">
+        {active > 0 && <span className="grid place-items-center size-5 rounded-full bg-brand text-white text-[0.65rem]">{active}</span>}Clear
+      </button>
     </div>
   )
 }
