@@ -11,11 +11,11 @@
  *  - The page writes unsynced prices into IndexedDB ("outbox"). When the device regains connectivity, the browser
  *    fires the "ml-outbox" sync event even if the app is closed, and we replay the outbox to /api/capture/sync.
  */
-const VERSION = 'v4'
+const VERSION = 'v5'
 const STATIC = `ml-static-${VERSION}`
 const PAGES = `ml-pages-${VERSION}`
 const OFFLINE_URL = '/offline.html'
-const WARM = ['/capture', '/capture/submissions']
+const WARM = ['/capture', '/capture/sales', '/capture/submissions']
 const NET_TIMEOUT = 4000
 
 self.addEventListener('install', (e) => {
@@ -78,7 +78,7 @@ async function replayOutbox() {
   const res = await fetch('/api/capture/sync', {
     method: 'POST', credentials: 'same-origin',
     headers: { 'content-type': 'application/json', 'x-requested-with': 'marketlens-sw' },
-    body: JSON.stringify({ items: items.map((i) => ({ userId: i.userId, date: i.date, cells: i.cells, submit: i.submit, pings: (i.pings || []).slice(0, 300) })) }),
+    body: JSON.stringify({ items: items.map((i) => ({ userId: i.userId, date: i.date, cells: i.cells, sales: i.sales || {}, submit: i.submit, pings: (i.pings || []).slice(0, 300) })) }),
   })
   if (!res.ok) throw new Error('sync failed ' + res.status)
   const { results } = await res.json()
@@ -91,10 +91,12 @@ async function replayOutbox() {
       if (!fresh) continue
       const cells = {}
       for (const [k, v] of Object.entries(fresh.cells)) if (!it.cells[k] || JSON.stringify(it.cells[k]) !== JSON.stringify(v)) cells[k] = v
+      const sl = {}
+      for (const [k, v] of Object.entries(fresh.sales || {})) if (!(it.sales || {})[k] || JSON.stringify(it.sales[k]) !== JSON.stringify(v)) sl[k] = v
       const submit = r.submitted ? false : fresh.submit
       const pings = (fresh.pings || []).slice(Math.min(300, (it.pings || []).length))
-      if (Object.keys(cells).length === 0 && !submit && pings.length === 0) await store(db, 'readwrite', (s) => s.delete(it.key))
-      else await store(db, 'readwrite', (s) => s.put({ ...fresh, cells, submit, pings }))
+      if (Object.keys(cells).length === 0 && Object.keys(sl).length === 0 && !submit && pings.length === 0) await store(db, 'readwrite', (s) => s.delete(it.key))
+      else await store(db, 'readwrite', (s) => s.put({ ...fresh, cells, sales: sl, submit, pings }))
     } else if (r.permanent) await store(db, 'readwrite', (s) => s.delete(it.key))
   }
   const clients = await self.clients.matchAll({ type: 'window' })

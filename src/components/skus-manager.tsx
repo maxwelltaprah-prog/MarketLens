@@ -1,7 +1,7 @@
 'use client'
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { saveSkuAction, importSkusAction } from '@/actions/admin'
+import { saveSkuAction, importSkusAction, setBrandTypeAction } from '@/actions/admin'
 import { toast } from './toast'
 import { Icon } from './icons'
 import { Modal, Toggle } from './modal'
@@ -9,7 +9,7 @@ import { ImportButton } from './import-dialog'
 import { Field, cx } from './ui'
 
 type Sku = { id: string; label: string; code: string; active: boolean; brandIds: string[] }
-type Brand = { id: string; name: string }
+type Brand = { id: string; name: string; isCompany: boolean; active: boolean }
 type Draft = { id?: string; label: string; code: string; active: boolean; brandIds: string[]; newBrands: string[] }
 
 export function SkusManager({ skus, brands }: { skus: Sku[]; brands: Brand[] }) {
@@ -29,10 +29,12 @@ export function SkusManager({ skus, brands }: { skus: Sku[]; brands: Brand[] }) 
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div><div className="eyebrow">Master data</div><h1 className="text-3xl md:text-4xl font-medium mt-1">SKUs &amp; Brands</h1><p className="text-muted text-sm mt-2">Control the pack sizes and brands available during price capture.</p></div>
         <div className="flex gap-3">
-          <ImportButton title="Import SKUs & brands" columns="sku,brand" example="5 kg,Royal Aroma" action={importSkusAction} />
+          <ImportButton title="Import SKUs & brands" columns="sku,brand,type" example="5 kg,Royal Aroma,company" action={importSkusAction} />
           <button className="btn btn-primary" onClick={() => { setErr(null); setEdit({ label: '', code: '', active: true, brandIds: [], newBrands: [] }) }}><Icon name="plus" size={16} /> Add SKU</button>
         </div>
       </div>
+      <BrandTypes brands={brands} />
+      <h2 className="text-xl font-medium mt-8 mb-3">Pack sizes</h2>
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
         {skus.map((k) => (
           <article key={k.id} className={cx('card p-5 hover:shadow-pop transition-shadow', !k.active && 'opacity-60')}>
@@ -42,7 +44,7 @@ export function SkusManager({ skus, brands }: { skus: Sku[]; brands: Brand[] }) 
               <button className="icon-btn" aria-label={`Edit ${k.label}`} onClick={() => { setErr(null); setEdit({ ...k, newBrands: [] }) }}><Icon name="edit" size={16} /></button>
             </div>
             <div className="mt-4 pt-4 border-t border-line flex flex-wrap gap-1.5">
-              {k.brandIds.slice(0, 6).map((id) => <span key={id} className="rounded-lg bg-canvas border border-line px-2.5 py-1 text-xs text-muted">{bName.get(id)}</span>)}
+              {k.brandIds.slice(0, 6).map((id) => { const b = brands.find((x) => x.id === id); return <span key={id} className={cx('rounded-lg border px-2.5 py-1 text-xs', b?.isCompany ? 'bg-mint border-brand-soft text-brand-ink font-semibold' : 'bg-canvas border-line text-muted')}>{bName.get(id)}</span> })}
               {k.brandIds.length > 6 && <span className="rounded-lg bg-canvas border border-line px-2.5 py-1 text-xs text-muted">+{k.brandIds.length - 6} more</span>}
             </div>
           </article>
@@ -73,5 +75,37 @@ export function SkusManager({ skus, brands }: { skus: Sku[]; brands: Brand[] }) 
         </form>
       </Modal>
     </>
+  )
+}
+
+/** Company vs competitor. Only company brands appear on the promoters' Sales screen. */
+function BrandTypes({ brands }: { brands: Brand[] }) {
+  const router = useRouter()
+  const [q, setQ] = useState('')
+  const [busy, setBusy] = useState<string | null>(null)
+  const list = brands.filter((b) => b.active && b.name.toLowerCase().includes(q.toLowerCase()))
+  const company = brands.filter((b) => b.isCompany && b.active)
+  const flip = async (b: Brand) => {
+    setBusy(b.id)
+    const r = await setBrandTypeAction({ id: b.id, isCompany: !b.isCompany })
+    setBusy(null)
+    if (r.ok) { router.refresh(); toast(`${b.name} is now a ${b.isCompany ? 'competitor' : 'company'} brand`) } else toast('Could not update brand', { body: r.error, tone: 'error' })
+  }
+  return (
+    <section className="card overflow-hidden">
+      <div className="p-5 flex flex-wrap items-start justify-between gap-3">
+        <div><h2 className="font-semibold text-lg">Brands</h2><p className="text-sm text-muted">Tap a brand to switch it between <b className="text-brand-ink">Company</b> (Olam Agri, sales are recorded) and Competitor (prices only). {company.length} company brand{company.length === 1 ? '' : 's'}.</p></div>
+        <input className="input !w-56" type="search" placeholder="Filter brands" aria-label="Filter brands" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
+      <div className="px-5 pb-5 flex flex-wrap gap-2">
+        {list.map((b) => (
+          <button key={b.id} type="button" aria-pressed={b.isCompany} disabled={busy === b.id} onClick={() => flip(b)} title={b.isCompany ? 'Company brand — click to mark as competitor' : 'Competitor — click to mark as company brand'}
+            className={cx('inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors disabled:opacity-50', b.isCompany ? 'bg-brand text-white border-brand' : 'bg-white border-line text-muted hover:border-brand-soft hover:text-ink')}>
+            {b.isCompany && <Icon name="check" size={13} />}{b.name}
+          </button>
+        ))}
+        {list.length === 0 && <span className="text-sm text-muted">No brands match.</span>}
+      </div>
+    </section>
   )
 }

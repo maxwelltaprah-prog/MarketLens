@@ -140,6 +140,17 @@ export async function saveSettingsAction(input: unknown): Promise<Result> {
   return { ok: true }
 }
 
+/* ---------------- Brand type ---------------- */
+export async function setBrandTypeAction(input: unknown): Promise<Result> {
+  const admin = await requireUser('admin')
+  const p = z.object({ id: uuid, isCompany: z.boolean() }).safeParse(input)
+  if (!p.success) return { ok: false, error: 'Invalid brand.' }
+  await db.update(brands).set({ isCompany: p.data.isCompany }).where(eq(brands.id, p.data.id))
+  await audit(admin.id, 'brand.type', 'brand', p.data.id, { isCompany: p.data.isCompany })
+  revalidatePath('/admin', 'layout'); revalidatePath('/capture', 'layout')
+  return { ok: true }
+}
+
 /* ---------------- CSV imports ---------------- */
 export type ImportResult = Result<{ created: number; updated: number; skipped: string[] }>
 const cap = (rows: string[][]) => rows.slice(0, 2001)
@@ -200,7 +211,7 @@ export async function importSkusAction(text: string): Promise<ImportResult> {
   const admin = await requireUser('admin')
   const rows = cap(parseCsv(String(text).slice(0, 1_000_000)))
   const body = /^sku$/i.test(rows[0]?.[0] ?? '') ? rows.slice(1) : rows
-  if (!body.length) return { ok: false, error: 'The file is empty. Expected columns: sku,brand' }
+  if (!body.length) return { ok: false, error: 'The file is empty. Expected columns: sku,brand,type (type optional: company or competitor)' }
   const skuMap = new Map((await db.select().from(skus)).map((k) => [k.label.toLowerCase(), k]))
   const brandMap = new Map((await db.select().from(brands)).map((b) => [b.name.toLowerCase(), b.id]))
   let created = 0, updated = 0; const skipped: string[] = []
@@ -213,8 +224,10 @@ export async function importSkusAction(text: string): Promise<ImportResult> {
       const code = (sku.match(/[\d.]+/)?.[0] ?? sku).slice(0, 8)
       const [row] = await db.insert(skus).values({ label: sku, code, sortOrder: order++ }).returning(); k = row; skuMap.set(sku.toLowerCase(), row); created++
     }
+    const type = (r[2] ?? '').trim().toLowerCase()
     let bid = brandMap.get(brand.toLowerCase())
-    if (!bid) { const [b] = await db.insert(brands).values({ name: brand }).returning({ id: brands.id }); bid = b.id; brandMap.set(brand.toLowerCase(), bid) }
+    if (!bid) { const [b] = await db.insert(brands).values({ name: brand, isCompany: type === 'company' }).returning({ id: brands.id }); bid = b.id; brandMap.set(brand.toLowerCase(), bid) }
+    else if (type === 'company' || type === 'competitor') await db.update(brands).set({ isCompany: type === 'company' }).where(eq(brands.id, bid))
     const ins = await db.insert(skuBrands).values({ skuId: k.id, brandId: bid, sortOrder: i }).onConflictDoNothing().returning({ b: skuBrands.brandId })
     if (ins.length) updated++
   }

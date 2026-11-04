@@ -245,7 +245,7 @@ export function CaptureGrid({ userId, date, catalog, initial, previous, previous
       </div>
 
       {/* Sticky action bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur safe-b">
+      <div className="fixed inset-x-0 bottom-[3.6rem] sm:bottom-0 z-30 border-t border-line bg-white/95 backdrop-blur sm:safe-b">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="font-semibold text-sm tabular-nums">{filled} of {total} captured</div>

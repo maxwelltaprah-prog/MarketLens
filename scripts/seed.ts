@@ -55,7 +55,8 @@ async function main() {
 
   // SKUs / brands
   const brandNames = [...new Set(SKUS.flatMap((k) => k.brands))]
-  await db.insert(s.brands).values(brandNames.map((name) => ({ name }))).onConflictDoNothing()
+  // Royal Aroma is Olam Agri's own brand; everything else is treated as a competitor until an admin changes it.
+  await db.insert(s.brands).values(brandNames.map((name) => ({ name, isCompany: /^royal aroma$/i.test(name) }))).onConflictDoNothing()
   await db.insert(s.skus).values(SKUS.map((k, i) => ({ label: k.label, code: k.code, sortOrder: i }))).onConflictDoNothing()
   const brandRows = await db.select().from(s.brands)
   const skuRows = await db.select().from(s.skus)
@@ -117,6 +118,14 @@ async function seedDemo(outletRows: (typeof s.outlets.$inferSelect)[], skuRows: 
       })
       for (let i = 0; i < rows.length; i += 500)
         await db.insert(s.entryPrices).values(rows.slice(i, i + 500)).onConflictDoNothing()
+      // Demo sales for company brands
+      const company = await db.select({ id: s.brands.id }).from(s.brands).where(sql`${s.brands.isCompany} = true`)
+      const companyPairs = pairs.filter((p) => company.some((c) => c.id === p.brandId))
+      const salesRows = companyPairs.filter(() => Math.random() < 0.7).map((p) => ({
+        outletId: o.id, promoterId: promoter.id, saleDate: iso, skuId: p.skuId, brandId: p.brandId,
+        quantity: randomInt(1, 40), unitPrice: (base.get(`${p.skuId}:${p.brandId}`)! * trend * 1.05).toFixed(2),
+      }))
+      if (salesRows.length) await db.insert(s.sales).values(salesRows).onConflictDoNothing()
     }
   }
 }

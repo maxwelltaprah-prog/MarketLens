@@ -57,6 +57,15 @@ Admins record a sign-in position too. Positions captured offline ride along in t
 - **Settings**: turn tracking on/off, require a location to submit, radius, heartbeat interval and retention (default 90 days).
 - Browsers cannot report location while the app is closed; tracking only runs while MarketLens is open in the foreground.
 
+## 4d. Daily sales
+
+Admin → SKUs & Brands has a **Brands** panel: tap a brand to mark it **Company** (Olam Agri) or Competitor. Only
+company brands appear on the promoters' **Sales** tab, where they pick the brand, the pack size, enter the units sold
+(and optionally the unit price) and tap Add. Lines for the day can be adjusted or removed; everything works offline
+and syncs with the price outbox. Admin → **Sales** shows units and value with period-over-period deltas, charts by day,
+pack size, brand, outlet and promoter, every line with the outlet name, and **Export to Excel** (a workbook with the
+lines plus summary sheets). The SKU import accepts an optional `type` column (`company` / `competitor`).
+
 ## 5. CSV imports (Admin → Outlets / Promoters / SKUs)
 
 Outlets accept optional `lat,lng` columns. Each import dialog shows the expected header columns and offers a template download. Rows with errors are reported and skipped.

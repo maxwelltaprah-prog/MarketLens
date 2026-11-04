@@ -7,6 +7,7 @@ import { Toaster } from '@/components/toast'
 import { SyncManager } from '@/components/sync-manager'
 import { Avatar } from '@/components/ui'
 import { LocationTracker } from '@/components/location-tracker'
+import { CaptureTabs } from '@/components/capture-tabs'
 import { getSettings } from '@/lib/settings'
 import { todayISO } from '@/lib/format'
 
@@ -32,7 +33,8 @@ export default async function CaptureLayout({ children }: { children: React.Reac
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-4xl px-4 sm:px-6 py-8">
+      <main className="mx-auto max-w-4xl px-4 sm:px-6 py-6 pb-24 sm:pb-8">
+        <CaptureTabs />
         {settings.locationTracking && <LocationTracker userId={user.id} role="promoter" date={todayISO()} intervalSec={settings.trackingIntervalSec} required={settings.requireLocation} outletName={user.outletName} />}
         {children}
       </main>

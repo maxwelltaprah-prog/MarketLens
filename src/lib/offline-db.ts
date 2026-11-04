@@ -3,7 +3,9 @@
 export type Cell = { price: string; na: boolean }
 export type CellMap = Record<string, Cell>
 export type Ping = { kind: 'login' | 'heartbeat' | 'save' | 'submit'; lat: number; lng: number; accuracyM: number | null; speedMps: number | null; headingDeg: number | null; altitudeM: number | null; battery: number | null; online: boolean; capturedAt: string }
-export type QueueItem = { key: string; userId: string; date: string; cells: CellMap; submit: boolean; pings: Ping[]; updatedAt: number; lastError?: string }
+export type SaleLine = { quantity: number; unitPrice: string | null }
+export type SalesMap = Record<string, SaleLine>
+export type QueueItem = { key: string; userId: string; date: string; cells: CellMap; sales?: SalesMap; submit: boolean; pings: Ping[]; updatedAt: number; lastError?: string }
 
 const DB = 'marketlens', STORE = 'outbox', VERSION = 1
 const hasIdb = () => typeof indexedDB !== 'undefined'
@@ -34,26 +36,28 @@ export async function listItems(): Promise<QueueItem[]> {
   try { return await tx<QueueItem[]>('readonly', (s) => s.getAll()) } catch { return [] }
 }
 /** Merge cells into the outbox record for this date. */
-export async function enqueue(userId: string, date: string, cells: CellMap, submit?: boolean, pings: Ping[] = []): Promise<QueueItem | undefined> {
+export async function enqueue(userId: string, date: string, cells: CellMap, submit?: boolean, pings: Ping[] = [], salesLines: SalesMap = {}): Promise<QueueItem | undefined> {
   if (!hasIdb()) return undefined
   const cur = await getItem(userId, date)
-  const next: QueueItem = { key: keyFor(userId, date), userId, date, cells: { ...(cur?.cells ?? {}), ...cells }, submit: submit ?? cur?.submit ?? false, pings: [...(cur?.pings ?? []), ...pings].slice(-300), updatedAt: Date.now() }
+  const next: QueueItem = { key: keyFor(userId, date), userId, date, cells: { ...(cur?.cells ?? {}), ...cells }, sales: { ...(cur?.sales ?? {}), ...salesLines }, submit: submit ?? cur?.submit ?? false, pings: [...(cur?.pings ?? []), ...pings].slice(-300), updatedAt: Date.now() }
   try { await tx('readwrite', (s) => s.put(next)) } catch {}
   notify()
   return next
 }
 /** Remove synced cells (only those whose value is unchanged since they were sent). */
-export async function ack(userId: string, date: string, sent: CellMap, submitted: boolean, sentPings = 0) {
+export async function ack(userId: string, date: string, sent: CellMap, submitted: boolean, sentPings = 0, sentSales: SalesMap = {}) {
   if (!hasIdb()) return
   const cur = await getItem(userId, date)
   if (!cur) return
   const cells: CellMap = {}
   for (const [k, v] of Object.entries(cur.cells)) if (!sent[k] || JSON.stringify(sent[k]) !== JSON.stringify(v)) cells[k] = v
+  const salesLeft: SalesMap = {}
+  for (const [k, v] of Object.entries(cur.sales ?? {})) if (!sentSales[k] || JSON.stringify(sentSales[k]) !== JSON.stringify(v)) salesLeft[k] = v
   const submit = submitted ? false : cur.submit
   const pings = (cur.pings ?? []).slice(sentPings)
   try {
-    if (Object.keys(cells).length === 0 && !submit && pings.length === 0) await tx('readwrite', (s) => s.delete(cur.key))
-    else await tx('readwrite', (s) => s.put({ ...cur, cells, submit, pings, lastError: undefined }))
+    if (Object.keys(cells).length === 0 && Object.keys(salesLeft).length === 0 && !submit && pings.length === 0) await tx('readwrite', (s) => s.delete(cur.key))
+    else await tx('readwrite', (s) => s.put({ ...cur, cells, sales: salesLeft, submit, pings, lastError: undefined }))
   } catch {}
   notify()
 }
@@ -67,7 +71,7 @@ export async function clearAll() { if (!hasIdb()) return; try { await tx('readwr
 
 export async function pendingCount() {
   const xs = await listItems()
-  return xs.reduce((n, x) => n + Object.keys(x.cells).length + (x.submit ? 1 : 0), 0) // pings are background data, not counted
+  return xs.reduce((n, x) => n + Object.keys(x.cells).length + Object.keys(x.sales ?? {}).length + (x.submit ? 1 : 0), 0) // pings are background data, not counted
 }
 async function notify() {
   if (typeof window === 'undefined') return

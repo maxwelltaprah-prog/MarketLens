@@ -12,6 +12,7 @@ import { logoutAction } from '@/actions/auth'
 const NAV: { href: string; label: string; icon: IconName; title: string; hint: string }[] = [
   { href: '/admin', label: 'Dashboard', icon: 'grid', title: 'Dashboard', hint: 'Coverage, KPIs and trends' },
   { href: '/admin/reports', label: 'Reports', icon: 'table', title: 'Price report', hint: 'Brand × outlet price matrix' },
+  { href: '/admin/sales', label: 'Sales', icon: 'trend', title: 'Sales', hint: 'Daily units sold by brand, outlet and promoter' },
   { href: '/admin/entries', label: 'Entries', icon: 'bars', title: 'Entries', hint: 'Every capture, by outlet and day' },
   { href: '/admin/field', label: 'Field map', icon: 'map', title: 'Field map', hint: 'Live promoter locations and trails' },
   { href: '/admin/outlets', label: 'Outlets', icon: 'building', title: 'Outlets', hint: 'Manage outlets and regions' },

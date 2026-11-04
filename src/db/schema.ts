@@ -46,6 +46,7 @@ export const skus = pgTable('skus', {
 export const brands = pgTable('brands', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
+  isCompany: boolean('is_company').notNull().default(false), // Olam Agri brand (sales are recorded) vs competitor (prices only)
   active: boolean('active').notNull().default(true),
 }, (t) => [uniqueIndex('brands_name_uq').on(t.name)])
 
@@ -137,4 +138,25 @@ export const locationPings = pgTable('location_pings', {
   index('location_pings_user_time_idx').on(t.userId, t.capturedAt),
   index('location_pings_entry_idx').on(t.entryId),
   index('location_pings_time_idx').on(t.capturedAt),
+])
+
+/** Daily sales recorded by promoters for company brands. One row per outlet × day × SKU × brand (upserted). */
+export const sales = pgTable('sales', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  outletId: uuid('outlet_id').notNull().references(() => outlets.id),
+  promoterId: uuid('promoter_id').notNull().references(() => users.id),
+  saleDate: date('sale_date').notNull(),
+  skuId: uuid('sku_id').notNull().references(() => skus.id),
+  brandId: uuid('brand_id').notNull().references(() => brands.id),
+  quantity: integer('quantity').notNull().default(0),
+  unitPrice: numeric('unit_price', { precision: 12, scale: 2 }),   // optional selling price, enables revenue
+  note: text('note'),
+  geoLat: doublePrecision('geo_lat'),
+  geoLng: doublePrecision('geo_lng'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('sales_uq').on(t.outletId, t.saleDate, t.skuId, t.brandId),
+  index('sales_date_idx').on(t.saleDate),
+  index('sales_brand_idx').on(t.brandId, t.skuId),
 ])
