@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { eq } from 'drizzle-orm'
-import { db, entries, outlets, users } from '@/db'
+import { eq, inArray } from 'drizzle-orm'
+import { db, entries, outlets, users, skus, brands } from '@/db'
 import { Icon } from '@/components/icons'
 import { StatusPill } from '@/components/ui'
 import { AdminEntryEditor } from '@/components/admin-entry-editor'
@@ -23,6 +23,21 @@ export default async function EntryDetail({ params }: { params: Promise<{ id: st
   const pings = await getEntryPings(id)
   const [meta] = await db.select({ outlet: outlets.name, region: outlets.region, promoter: users.name, lat: outlets.lat, lng: outlets.lng }).from(entries)
     .innerJoin(outlets, eq(outlets.id, entries.outletId)).innerJoin(users, eq(users.id, entries.promoterId)).where(eq(entries.id, id))
+  // Keep prices visible even if the brand was later unlinked from the pack size in the catalogue.
+  const known = new Set(catalog.flatMap((k) => k.brands.map((b) => `${k.id}:${b.id}`)))
+  const missing = Object.keys(data.prices).filter((k) => !known.has(k)).map((k) => { const [skuId, brandId] = k.split(':'); return { skuId, brandId } })
+  if (missing.length) {
+    const [sk, br] = await Promise.all([
+      db.select({ id: skus.id, label: skus.label, code: skus.code }).from(skus).where(inArray(skus.id, [...new Set(missing.map((m) => m.skuId))])),
+      db.select({ id: brands.id, name: brands.name }).from(brands).where(inArray(brands.id, [...new Set(missing.map((m) => m.brandId))])),
+    ])
+    for (const m of missing) {
+      const b = br.find((x) => x.id === m.brandId); if (!b) continue
+      let g = catalog.find((k) => k.id === m.skuId)
+      if (!g) { const x = sk.find((y) => y.id === m.skuId); if (!x) continue; g = { id: x.id, label: x.label, code: x.code, brands: [] }; catalog.push(g) }
+      if (!g.brands.some((y) => y.id === b.id)) g.brands.push({ id: b.id, name: `${b.name} (not in catalogue)` })
+    }
+  }
   const total = totalPricePoints(catalog), filled = countFilled(data.prices)
   const e = data.entry
   return (

@@ -66,7 +66,7 @@ function GroupRows({ g, outlets, symbol, showDates }: { g: Report['groups'][numb
       {g.rows.map((row, i) => (
         <tr key={row.brand.id} className={cx('group', i % 2 ? 'bg-[#fcfbf9]' : 'bg-white')}>
           <td className="sticky-col px-4 py-2.5 border-b border-line font-medium" style={{ background: i % 2 ? '#fcfbf9' : '#fff' }}>
-            <span className="flex items-center gap-2"><span className="grid place-items-center size-6 rounded-full bg-mint text-brand-ink text-[0.6rem] font-bold shrink-0">{row.brand.name[0]}</span><span className="truncate max-w-[11rem]" title={row.brand.name}>{row.brand.name}</span></span>
+            <span className="flex items-center gap-2"><span className="grid place-items-center size-6 rounded-full bg-mint text-brand-ink text-[0.6rem] font-bold shrink-0">{row.brand.name[0]}</span><span className="truncate max-w-[11rem]" title={row.brand.name}>{row.brand.name}</span>{row.legacy && <span className="pill pill-off !py-0 !text-[0.55rem]" title="This brand is no longer linked to this pack size in SKUs & Brands. Historical prices are still shown.">not in catalogue</span>}</span>
           </td>
           {outlets.map((o) => {
             const c = row.cells[o.id]

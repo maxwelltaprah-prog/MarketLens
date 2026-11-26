@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, asc, eq, gte, lte, type SQL } from 'drizzle-orm'
+import { and, asc, eq, gte, lte, inArray, type SQL } from 'drizzle-orm'
 import { db, entries, entryPrices, outlets, skus, brands, skuBrands } from '@/db'
 import { addDaysISO, todayISO } from './format'
 import { isIso, isUuid } from './admin-queries'
@@ -27,7 +27,7 @@ export function parseReportFilters(sp: Record<string, string | string[] | undefi
 }
 
 export type CellStat = { v: number | null; na: boolean; date: string; n: number }
-export type ReportRow = { brand: { id: string; name: string }; cells: Record<string, CellStat>; min: number | null; avg: number | null; max: number | null; n: number }
+export type ReportRow = { brand: { id: string; name: string }; cells: Record<string, CellStat>; min: number | null; avg: number | null; max: number | null; n: number; legacy?: boolean }
 export type ReportGroup = { sku: { id: string; label: string; code: string }; rows: ReportRow[] }
 export type Report = {
   outlets: { id: string; name: string; region: string; avgIndex: number | null; n: number }[]
@@ -48,12 +48,13 @@ export async function getReport(f: ReportFilters): Promise<Report> {
   const [cols, regionRows, catalog] = await Promise.all([
     db.select({ id: outlets.id, name: outlets.name, region: outlets.region }).from(outlets).where(and(...outletWhere)).orderBy(asc(outlets.region), asc(outlets.name)),
     db.selectDistinct({ region: outlets.region }).from(outlets).where(eq(outlets.active, true)).orderBy(asc(outlets.region)),
-    db.select({ skuId: skus.id, label: skus.label, code: skus.code, brandId: brands.id, brandName: brands.name })
+    db.select({ skuId: skus.id, label: skus.label, code: skus.code, skuOrder: skus.sortOrder, brandId: brands.id, brandName: brands.name })
       .from(skuBrands).innerJoin(skus, eq(skus.id, skuBrands.skuId)).innerJoin(brands, eq(brands.id, skuBrands.brandId))
       .where(and(eq(skus.active, true), eq(brands.active, true), ...(f.skuId ? [eq(skus.id, f.skuId)] : []), ...(f.brandId ? [eq(brands.id, f.brandId)] : [])))
       .orderBy(asc(skus.sortOrder), asc(skuBrands.sortOrder)),
   ])
   const colIds = new Set(cols.map((c) => c.id))
+  const skuOrder = new Map(catalog.map((c) => [c.skuId, c.skuOrder]))
 
   const where: SQL[] = [eq(entries.status, 'submitted'), gte(entries.entryDate, f.from), lte(entries.entryDate, f.to)]
   if (f.skuId) where.push(eq(entryPrices.skuId, f.skuId))
@@ -89,6 +90,24 @@ export async function getReport(f: ReportFilters): Promise<Report> {
     return round2(a.sum / a.n)
   }
 
+  // Pairs that have prices in the period but are no longer in the catalogue (brand unlinked from the pack size, or
+  // deactivated) still belong in the report: history must not disappear when master data changes.
+  const known = new Set(catalog.map((c) => `${c.skuId}:${c.brandId}`))
+  const seen = new Map<string, { skuId: string; brandId: string }>()
+  for (const k of acc.keys()) { const [skuId, brandId] = k.split(':'); const key = `${skuId}:${brandId}`; if (!known.has(key) && !seen.has(key)) seen.set(key, { skuId, brandId }) }
+  if (seen.size) {
+    const skuIds = [...new Set([...seen.values()].map((x) => x.skuId))], brandIds = [...new Set([...seen.values()].map((x) => x.brandId))]
+    const [skuRows, brandRows] = await Promise.all([
+      db.select({ id: skus.id, label: skus.label, code: skus.code, sortOrder: skus.sortOrder }).from(skus).where(inArray(skus.id, skuIds)),
+      db.select({ id: brands.id, name: brands.name }).from(brands).where(inArray(brands.id, brandIds)),
+    ])
+    for (const x of seen.values()) {
+      const sk = skuRows.find((r) => r.id === x.skuId), br = brandRows.find((r) => r.id === x.brandId)
+      if (sk && br) { skuOrder.set(sk.id, sk.sortOrder); catalog.push({ skuId: sk.id, label: sk.label, code: sk.code, skuOrder: sk.sortOrder, brandId: br.id, brandName: br.name, legacy: true } as typeof catalog[number] & { legacy: boolean }) }
+    }
+    catalog.sort((a, b) => ((skuOrder.get(a.skuId) ?? 999) - (skuOrder.get(b.skuId) ?? 999)) || a.brandName.localeCompare(b.brandName))
+  }
+
   const groups: ReportGroup[] = []
   for (const c of catalog) {
     let g = groups.find((x) => x.sku.id === c.skuId)
@@ -101,7 +120,7 @@ export async function getReport(f: ReportFilters): Promise<Report> {
       cells[o.id] = { v, na: !!a?.na && v == null, date: a?.latestDate ?? '', n: a?.n ?? 0 }
       if (v != null) vals.push(v)
     }
-    const row: ReportRow = { brand: { id: c.brandId, name: c.brandName }, cells, n: vals.length,
+    const row: ReportRow = { brand: { id: c.brandId, name: c.brandName }, cells, n: vals.length, legacy: (c as { legacy?: boolean }).legacy,
       min: vals.length ? Math.min(...vals) : null, max: vals.length ? Math.max(...vals) : null, avg: vals.length ? round2(vals.reduce((s, v) => s + v, 0) / vals.length) : null }
     g.rows.push(row)
   }
