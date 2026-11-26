@@ -1,6 +1,7 @@
 import { getCurrentUser } from '@/lib/session'
 import { allSales, getSalesAnalytics, parseSalesFilters } from '@/lib/sales-core'
 import { buildXlsx, XLSX_MIME } from '@/lib/xlsx'
+import { DATE_HEADERS, dateRow } from '@/lib/date-parts'
 import { logSecurity } from '@/lib/security'
 
 export const dynamic = 'force-dynamic'
@@ -13,8 +14,8 @@ export async function GET(req: Request) {
   const { f } = parseSalesFilters(Object.fromEntries(url.searchParams.entries()))
   const [rows, a] = await Promise.all([allSales(f), getSalesAnalytics(f)])
   const wb = buildXlsx([
-    { name: 'Sales', header: ['Date', 'Time', 'Outlet', 'Region', 'Promoter', 'Brand', 'Pack size', 'Units', 'Unit price', 'Value', 'Receipt', 'Last updated'],
-      rows: rows.map((r) => [r.date, r.capturedAt ? r.capturedAt.toISOString().slice(11, 16) : null, r.outlet, r.region, r.promoter, r.brand, r.sku, r.quantity, r.unitPrice == null ? null : Number(r.unitPrice), r.value, r.receiptId ? `${origin}/api/receipts/${r.receiptId}` : 'none', r.updatedAt.toISOString()]) },
+    { name: 'Sales', header: [...DATE_HEADERS, 'Time', 'Outlet', 'Region', 'Promoter', 'Brand', 'Pack size', 'Units', 'Unit price', 'Value', 'Receipt', 'Last updated'],
+      rows: rows.map((r) => [...dateRow(r.date), r.capturedAt ? r.capturedAt.toISOString().slice(11, 16) : null, r.outlet, r.region, r.promoter, r.brand, r.sku, r.quantity, r.unitPrice == null ? null : Number(r.unitPrice), r.value, r.receiptId ? `${origin}/api/receipts/${r.receiptId}` : 'none', r.updatedAt.toISOString()]) },
     { name: 'By brand', header: ['Brand', 'Units', 'Value'], rows: a.byBrand.map((b) => [b.name, b.v, b.value]) },
     { name: 'By outlet', header: ['Outlet', 'Region', 'Units', 'Value'], rows: a.byOutlet.map((o) => [o.name, o.region, o.v, o.value]) },
     { name: 'By pack size', header: ['Pack size', 'Units'], rows: a.bySku.map((s) => [s.name, s.v]) },

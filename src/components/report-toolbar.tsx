@@ -11,7 +11,7 @@ const AGGS: { k: Agg; label: string; hint: string }[] = [
   { k: 'max', label: 'Highest', hint: 'Highest capture in the range' },
 ]
 
-export function ReportToolbar({ agg, exportHref }: { agg: Agg; exportHref: string }) {
+export function ReportToolbar({ agg, exportHref, rawHref }: { agg: Agg; exportHref: string; rawHref: string }) {
   const { set, pending } = useParams()
   return (
     <div className={cx('no-print flex flex-wrap items-center gap-3 mb-4 transition-opacity', pending && 'opacity-60')}>
@@ -23,7 +23,8 @@ export function ReportToolbar({ agg, exportHref }: { agg: Agg; exportHref: strin
       </div>
       <div className="ml-auto flex items-center gap-2">
         <button onClick={() => window.print()} className="btn btn-outline btn-sm"><Icon name="print" size={14} /> Print / PDF</button>
-        <a href={exportHref} className="btn btn-primary btn-sm"><Icon name="download" size={14} /> Export CSV</a>
+        <a href={exportHref} className="btn btn-outline btn-sm"><Icon name="download" size={14} /> Matrix CSV</a>
+        <a href={rawHref} className="btn btn-primary btn-sm" title="One row per price and per sale, with Year / Month / Week / Weekday columns for pivot tables"><Icon name="table" size={14} /> Raw data (Excel)</a>
       </div>
     </div>
   )

@@ -63,6 +63,7 @@ export function AdminShell({ name, quick, children }: { name: string; quick: Qui
   const commands = useMemo<Command[]>(() => [
     ...NAV.map((n) => ({ id: n.href, label: n.label, hint: n.hint, icon: n.icon, href: n.href, keywords: 'page go to' })),
     { id: 'export', label: 'Export this month (CSV)', hint: 'All price points, current month', icon: 'download', href: '/admin/export', keywords: 'csv download' },
+    { id: 'raw', label: 'Raw data dump (Excel)', hint: 'Prices and sales with date columns, ready to pivot', icon: 'table', href: '/admin/export/raw', keywords: 'excel pivot dump xlsx' },
     { id: 'today', label: 'Who hasn’t reported today?', hint: 'Draft and missing entries for today', icon: 'alert', href: '/admin/entries?status=draft', keywords: 'pending missing' },
     ...quick.map((q) => ({ id: q.href, label: q.label, hint: q.hint, icon: (q.kind === 'outlet' ? 'building' : 'user') as IconName, href: q.href, keywords: q.kind })),
   ], [quick])

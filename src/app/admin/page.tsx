@@ -22,7 +22,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   return (
     <div className="rise">
       <PageHeader eyebrow="Overview" title="Market pulse" sub="Track field coverage and competitive pricing across your network."
-        action={<a href={`/admin/export?${qs}`} className="btn btn-primary"><Icon name="download" size={16} /> Export report</a>} />
+        action={<div className="flex gap-2"><a href={`/admin/export?${qs}`} className="btn btn-outline"><Icon name="download" size={16} /> CSV</a><a href={`/admin/export/raw?${qs}`} className="btn btn-primary" title="Pivot-ready: one row per price and per sale with date columns"><Icon name="table" size={16} /> Raw data (Excel)</a></div>} />
       <FilterBar defaults={{ from: `${today.slice(0, 8)}01`, to: today }}
         fields={{ outlet: opts.outlets.map((o) => ({ id: o.id, name: o.name })), sku: opts.skus.map((s) => ({ id: s.id, name: s.label })), brand: opts.brands.map((b) => ({ id: b.id, name: b.name, skuId: b.skuId })) }} />
       <Suspense key={JSON.stringify(raw)} fallback={<DashboardSkeleton />}><DashboardBody f={f} /></Suspense>

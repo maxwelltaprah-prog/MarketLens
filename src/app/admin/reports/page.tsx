@@ -30,7 +30,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           outlet: opts.outlets.map((o) => ({ id: o.id, name: o.name })),
           extra: [{ k: 'region', label: 'Region', opts: regions.map((r) => ({ id: r.region, name: r.region })) }],
         }} />
-      <ReportToolbar agg={f.agg} exportHref={`/admin/reports/export?${qs}`} />
+      <ReportToolbar agg={f.agg} exportHref={`/admin/reports/export?${qs}`} rawHref={`/admin/export/raw?${new URLSearchParams({ from: f.from, to: f.to, ...(f.outletId ? { outlet: f.outletId } : {}), ...(f.skuId ? { sku: f.skuId } : {}), ...(f.brandId ? { brand: f.brandId } : {}) })}`} />
       {f.clamped && <p className="no-print text-xs text-amber-ink bg-amber-soft rounded-xl px-3 py-2 mb-4 inline-flex items-center gap-2"><Icon name="info" size={14} /> Showing the last {MAX_DAYS} days of the selected range.</p>}
       <Suspense key={JSON.stringify(raw)} fallback={<ReportSkeleton />}><Body f={f} /></Suspense>
     </div>
