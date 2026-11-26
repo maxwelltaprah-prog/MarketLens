@@ -9,7 +9,7 @@ import { PageHeader, cx } from '@/components/ui'
 import { getFilterOptions } from '@/lib/admin-queries'
 import { getReport, parseReportFilters, MAX_DAYS, type ReportFilters } from '@/lib/reports'
 import { getSettings } from '@/lib/settings'
-import { currencySymbol, fmtDate, money, todayISO, addDaysISO } from '@/lib/format'
+import { currencySymbol, fmtDate, money, todayISO } from '@/lib/format'
 import { db, outlets } from '@/db'
 import { asc, eq } from 'drizzle-orm'
 
@@ -24,7 +24,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   return (
     <div className="rise">
       <PageHeader eyebrow="Reporting" title="Brand × outlet price matrix" sub="Every brand down the side, every outlet across the top. Filter by pack size, date, region or outlet. Export or print in one click." />
-      <FilterBar defaults={{ from: addDaysISO(today, -6), to: today }}
+      <FilterBar defaults={{ from: `${today.slice(0, 8)}01`, to: today }}
         fields={{
           sku: opts.skus.map((s) => ({ id: s.id, name: s.label })), brand: opts.brands.map((b) => ({ id: b.id, name: b.name, skuId: b.skuId })),
           outlet: opts.outlets.map((o) => ({ id: o.id, name: o.name })),
@@ -58,7 +58,7 @@ async function Body({ f }: { f: ReportFilters }) {
           <div><h2 className="font-semibold">Price matrix</h2><p className="text-xs text-muted">{sym} · hover a cell for capture count and last date</p></div>
           <span className="pill pill-brand">{f.agg}</span>
         </div>
-        <ReportTable r={r} symbol={sym} agg={f.agg} />
+        <ReportTable r={r} symbol={sym} agg={f.agg} showDates={f.agg === 'latest' && f.from !== f.to} />
       </section>
 
       <div className="grid xl:grid-cols-2 gap-4 print:break-before-page">

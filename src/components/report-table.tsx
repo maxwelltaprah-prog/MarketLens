@@ -6,7 +6,7 @@ import { fmtDate } from '@/lib/format'
 const fmtN = (n: number) => n.toLocaleString('en-GH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /** Brand × outlet price matrix. Rows: brands grouped by SKU. Columns: outlets. Cheapest / dearest per row are tinted. */
-export function ReportTable({ r, symbol, agg }: { r: Report; symbol: string; agg: string }) {
+export function ReportTable({ r, symbol, agg, showDates }: { r: Report; symbol: string; agg: string; showDates?: boolean }) {
   if (!r.groups.length || !r.outlets.length) return <Empty icon="table" title="Nothing to report for these filters" hint="Widen the date range, or pick a different SKU, region or outlet." />
   const hasData = r.totals.points > 0
   return (
@@ -29,7 +29,7 @@ export function ReportTable({ r, symbol, agg }: { r: Report; symbol: string; agg
         </thead>
         <tbody>
           {r.groups.map((g) => (
-            <GroupRows key={g.sku.id} g={g} outlets={r.outlets} symbol={symbol} />
+            <GroupRows key={g.sku.id} g={g} outlets={r.outlets} symbol={symbol} showDates={!!showDates} />
           ))}
           {hasData && (
             <tr className="bg-[#faf9f6]">
@@ -55,7 +55,7 @@ export function ReportTable({ r, symbol, agg }: { r: Report; symbol: string; agg
   )
 }
 
-function GroupRows({ g, outlets, symbol }: { g: Report['groups'][number]; outlets: Report['outlets']; symbol: string }) {
+function GroupRows({ g, outlets, symbol, showDates }: { g: Report['groups'][number]; outlets: Report['outlets']; symbol: string; showDates: boolean }) {
   return (
     <>
       <tr>
@@ -75,7 +75,7 @@ function GroupRows({ g, outlets, symbol }: { g: Report['groups'][number]; outlet
             return (
               <td key={o.id} title={c.date ? `${c.n} capture${c.n === 1 ? '' : 's'} · last ${fmtDate(c.date)}` : undefined}
                 className={cx('px-3 py-2.5 border-b border-l border-line text-right tabular-nums', isMin && 'bg-success-soft text-success font-semibold', isMax && 'bg-mint text-brand-ink font-semibold', c.v == null && 'text-muted')}>
-                {c.v != null ? fmtN(c.v) : c.na ? <span className="text-[0.7rem] font-semibold">N/A</span> : '—'}
+                {c.v != null ? <>{fmtN(c.v)}{showDates && c.date && <span className="block text-[0.6rem] font-normal text-muted">{fmtDate(c.date, { day: 'numeric', month: 'short' })}</span>}</> : c.na ? <span className="text-[0.7rem] font-semibold">N/A</span> : '—'}
               </td>
             )
           })}

@@ -11,12 +11,12 @@ export const MAX_DAYS = 92
 export function parseReportFilters(sp: Record<string, string | string[] | undefined>): { f: ReportFilters; raw: Record<string, string> } {
   const g = (k: string) => (Array.isArray(sp[k]) ? sp[k]![0] : sp[k]) as string | undefined
   const today = todayISO()
-  let from = isIso(g('from')) ? g('from')! : addDaysISO(today, -6)
+  let from = isIso(g('from')) ? g('from')! : `${today.slice(0, 8)}01`   // month-to-date, same as the dashboard and exports
   let to = isIso(g('to')) ? g('to')! : today
   if (from > to) [from, to] = [to, from]
   let clamped = false
   if ((Date.parse(to) - Date.parse(from)) / 86_400_000 > MAX_DAYS) { from = addDaysISO(to, -MAX_DAYS); clamped = true }
-  const agg = (['latest', 'avg', 'min', 'max'] as const).find((a) => a === g('agg')) ?? (from === to ? 'latest' : 'avg')
+  const agg = (['latest', 'avg', 'min', 'max'] as const).find((a) => a === g('agg')) ?? 'latest'   // show the last captured price unless asked otherwise
   const raw: Record<string, string> = {}
   for (const k of ['from', 'to', 'sku', 'brand', 'region', 'outlet', 'agg']) if (g(k)) raw[k] = g(k)!.slice(0, 80)
   return {
