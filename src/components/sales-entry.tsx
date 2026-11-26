@@ -75,6 +75,11 @@ export function SalesEntry({ userId, date, catalog, initial, symbol, editable }:
     const [sId, bId] = k.split(':'); const b = catalog.brands.find((x) => x.id === bId); const s = b?.skus.find((x) => x.id === sId)
     return { key: k, brand: b?.name ?? 'Brand', sku: s?.label ?? '', code: s?.code ?? '', ...v }
   }).sort((a, b) => a.brand.localeCompare(b.brand) || a.sku.localeCompare(b.sku)), [lines, catalog])
+  useEffect(() => {
+    const byBrand: Record<string, number> = {}
+    for (const [k, v] of Object.entries(lines)) { const b = k.split(':')[1]; byBrand[b] = (byBrand[b] ?? 0) + v.quantity }
+    window.dispatchEvent(new CustomEvent('ml-sales-today', { detail: byBrand }))
+  }, [lines])
   const units = rows.reduce((n, r) => n + r.quantity, 0)
   const value = rows.reduce((n, r) => n + (r.unitPrice ? r.quantity * Number(r.unitPrice) : 0), 0)
   const priced = rows.every((r) => r.unitPrice)

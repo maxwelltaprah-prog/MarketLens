@@ -66,6 +66,17 @@ and syncs with the price outbox. Admin → **Sales** shows units and value with 
 pack size, brand, outlet and promoter, every line with the outlet name, and **Export to Excel** (a workbook with the
 lines plus summary sheets). The SKU import accepts an optional `type` column (`company` / `competitor`).
 
+## 4e. Receipts and targets
+
+- **Receipts**: on the Sales tab promoters tap *Take photo* (camera) or *Gallery* to attach receipts or invoices for
+  the day. Photos are shrunk on the phone (≤1600 px JPEG, ~150–400 KB), queued offline and uploaded with the outbox.
+  Admins see a receipt count on each sales line (Admin → Sales) that opens a viewer. Images are stored in Postgres;
+  at ~300 KB each, 10,000 receipts ≈ 3 GB, so move to object storage (e.g. Vercel Blob) if volume grows.
+- **Targets** (Admin → Targets): a month grid of promoters × company brands. Type the units target per brand and the
+  incentive paid when the promoter's total is met; *Copy last month*; CSV import (`promoter,brand,units,incentive`,
+  promoter by phone or name); Excel export of target vs actual. Promoters see a live target card on the Sales tab
+  that recalculates as they type, with the on-pace line, units needed per day and the incentive.
+
 ## 5. CSV imports (Admin → Outlets / Promoters / SKUs)
 
 Outlets accept optional `lat,lng` columns. Each import dialog shows the expected header columns and offers a template download. Rows with errors are reported and skipped.

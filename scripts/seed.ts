@@ -55,8 +55,8 @@ async function main() {
 
   // SKUs / brands
   const brandNames = [...new Set(SKUS.flatMap((k) => k.brands))]
-  // Royal Aroma is Olam Agri's own brand; everything else is treated as a competitor until an admin changes it.
-  await db.insert(s.brands).values(brandNames.map((name) => ({ name, isCompany: /^royal aroma$/i.test(name) }))).onConflictDoNothing()
+  // Olam Agri brands (Royal Aroma, 24K Gold, New York, Paris); everything else is a competitor until an admin changes it.
+  await db.insert(s.brands).values(brandNames.map((name) => ({ name, isCompany: /^(royal aroma|24k gold|new york|paris)$/i.test(name) }))).onConflictDoNothing()
   await db.insert(s.skus).values(SKUS.map((k, i) => ({ label: k.label, code: k.code, sortOrder: i }))).onConflictDoNothing()
   const brandRows = await db.select().from(s.brands)
   const skuRows = await db.select().from(s.skus)

@@ -1,7 +1,7 @@
 import 'server-only'
 import { z } from 'zod'
 import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-orm'
-import { db, sales, skus, brands, skuBrands, outlets, users, auditLog } from '@/db'
+import { db, sales, skus, brands, skuBrands, outlets, users, auditLog, receipts } from '@/db'
 import { getSettings } from './settings'
 import { todayISO } from './format'
 import { isIso, isUuid } from './admin-queries'
@@ -98,9 +98,9 @@ function salesWhere(f: SalesFilters): SQL {
   return and(...parts)!
 }
 
-export type SalesRow = { id: string; date: string; outlet: string; region: string; promoter: string; brand: string; sku: string; quantity: number; unitPrice: string | null; value: number | null; updatedAt: Date }
+export type SalesRow = { id: string; outletId: string; date: string; outlet: string; region: string; promoter: string; brand: string; sku: string; quantity: number; unitPrice: string | null; value: number | null; updatedAt: Date }
 const base = () => db.select({
-  id: sales.id, date: sales.saleDate, outlet: outlets.name, region: outlets.region, promoter: users.name, brand: brands.name, sku: skus.label, skuOrder: skus.sortOrder,
+  id: sales.id, outletId: sales.outletId, date: sales.saleDate, outlet: outlets.name, region: outlets.region, promoter: users.name, brand: brands.name, sku: skus.label, skuOrder: skus.sortOrder,
   quantity: sales.quantity, unitPrice: sales.unitPrice, updatedAt: sales.updatedAt,
 }).from(sales).innerJoin(outlets, eq(outlets.id, sales.outletId)).innerJoin(users, eq(users.id, sales.promoterId)).innerJoin(brands, eq(brands.id, sales.brandId)).innerJoin(skus, eq(skus.id, sales.skuId))
 
@@ -156,4 +156,48 @@ export async function getSalesFilterOptions() {
     db.selectDistinct({ region: outlets.region }).from(outlets).where(eq(outlets.active, true)).orderBy(asc(outlets.region)),
   ])
   return { brands: b, promoters: p, regions: r.map((x) => x.region) }
+}
+
+/* ------------------------------------------------------------------
+   Receipts
+------------------------------------------------------------------- */
+export const MAX_RECEIPT_BYTES = 450_000
+export const receiptSchema = z.object({
+  clientId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
+  mime: z.enum(['image/jpeg', 'image/png', 'image/webp']),
+  data: z.string().max(Math.ceil(MAX_RECEIPT_BYTES * 1.37)).regex(/^[A-Za-z0-9+/=]+$/),
+  bytes: z.number().int().min(100).max(MAX_RECEIPT_BYTES),
+  width: z.number().int().min(1).max(8000), height: z.number().int().min(1).max(8000),
+  capturedAt: z.string().datetime(), note: z.string().max(200).optional(),
+})
+export type ReceiptIn = z.infer<typeof receiptSchema>
+
+export async function saveReceipts(user: { id: string; outletId: string | null }, date: string, items: ReceiptIn[], fix: { lat: number; lng: number } | null = null): Promise<{ ok: true; saved: number } | { ok: false; error: string; permanent: boolean }> {
+  if (!user.outletId) return { ok: false, error: 'You have no outlet assigned.', permanent: true }
+  if (!items.length) return { ok: true, saved: 0 }
+  // Magic bytes check: the mime claim must match the first bytes.
+  const rows = items.filter((r) => {
+    const head = Buffer.from(r.data.slice(0, 16), 'base64')
+    const jpg = head[0] === 0xff && head[1] === 0xd8, png = head[0] === 0x89 && head[1] === 0x50, webp = head.toString('latin1', 0, 4) === 'RIFF'
+    return (r.mime === 'image/jpeg' && jpg) || (r.mime === 'image/png' && png) || (r.mime === 'image/webp' && webp)
+  }).map((r) => ({ outletId: user.outletId!, promoterId: user.id, saleDate: date, clientId: r.clientId, mime: r.mime, data: r.data, bytes: r.bytes, width: r.width, height: r.height, note: r.note ?? null, geoLat: fix?.lat ?? null, geoLng: fix?.lng ?? null, capturedAt: new Date(r.capturedAt) }))
+  if (!rows.length) return { ok: false, error: 'The image could not be read.', permanent: true }
+  const ins = await db.insert(receipts).values(rows).onConflictDoNothing().returning({ id: receipts.id })
+  if (ins.length) await db.insert(auditLog).values({ actorId: user.id, action: 'receipt.upload', entity: 'receipt', entityId: `${user.outletId}:${date}`, meta: { count: ins.length } })
+  return { ok: true, saved: ins.length }
+}
+
+export type ReceiptMeta = { id: string; clientId: string; mime: string; bytes: number; width: number | null; height: number | null; capturedAt: Date; note: string | null; promoterId: string }
+export async function listReceipts(outletId: string, date: string): Promise<ReceiptMeta[]> {
+  return db.select({ id: receipts.id, clientId: receipts.clientId, mime: receipts.mime, bytes: receipts.bytes, width: receipts.width, height: receipts.height, capturedAt: receipts.capturedAt, note: receipts.note, promoterId: receipts.promoterId })
+    .from(receipts).where(and(eq(receipts.outletId, outletId), eq(receipts.saleDate, date))).orderBy(asc(receipts.capturedAt))
+}
+/** Receipt counts for a set of (outlet, date) pairs, keyed `${outletId}:${date}`. */
+export async function receiptCounts(pairs: { outletId: string; date: string }[]) {
+  if (!pairs.length) return new Map<string, { n: number; ids: string[] }>()
+  const dates = [...new Set(pairs.map((p) => p.date))], outs = [...new Set(pairs.map((p) => p.outletId))]
+  const rows = await db.select({ outletId: receipts.outletId, date: receipts.saleDate, id: receipts.id }).from(receipts).where(and(inArray(receipts.outletId, outs), inArray(receipts.saleDate, dates))).orderBy(asc(receipts.capturedAt))
+  const m = new Map<string, { n: number; ids: string[] }>()
+  for (const r of rows) { const k = `${r.outletId}:${r.date}`; const e = m.get(k) ?? { n: 0, ids: [] }; e.n++; e.ids.push(r.id); m.set(k, e) }
+  return m
 }

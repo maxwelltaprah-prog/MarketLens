@@ -1,5 +1,8 @@
 import { requireUser } from '@/lib/session'
-import { getCompanyCatalog, getSalesForDay, recentSalesDays } from '@/lib/sales-core'
+import { getCompanyCatalog, getSalesForDay, recentSalesDays, listReceipts } from '@/lib/sales-core'
+import { ReceiptCapture } from '@/components/receipt-capture'
+import { TargetCard } from '@/components/target-card'
+import { getPromoterProgress } from '@/lib/targets'
 import { getSettings } from '@/lib/settings'
 import { currencySymbol, fmtDate, todayISO, addDaysISO } from '@/lib/format'
 import { SalesEntry } from '@/components/sales-entry'
@@ -11,14 +14,16 @@ export default async function SalesPage() {
   const user = await requireUser('promoter')
   const today = todayISO()
   if (!user.outletId) return <div className="card p-8 text-center"><h1 className="text-2xl font-medium">No outlet assigned</h1><p className="text-muted mt-2">Ask your administrator to assign you to an outlet.</p></div>
-  const [catalog, initial, settings, recent] = await Promise.all([getCompanyCatalog(), getSalesForDay(user.outletId, today), getSettings(), recentSalesDays(user.outletId, 14)])
+  const [catalog, initial, settings, recent, rcpts, progress] = await Promise.all([getCompanyCatalog(), getSalesForDay(user.outletId, today), getSettings(), recentSalesDays(user.outletId, 14), listReceipts(user.outletId, today), getPromoterProgress(user.id)])
   const sym = currencySymbol(settings.currency)
   return (
     <div className="rise">
       <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
         <div><div className="eyebrow">Daily sales</div><h1 className="text-4xl font-medium mt-1">{fmtDate(today, { weekday: 'long', day: 'numeric', month: 'long' })}</h1><p className="text-muted mt-2 text-sm">Record the units of our brands sold today at {user.outletName}.</p></div>
       </div>
+      <TargetCard label={progress.label} days={progress.days} elapsed={progress.elapsed} lines={progress.lines} incentive={progress.incentive} symbol={sym} hasTargets={progress.hasTargets} />
       <SalesEntry userId={user.id} date={today} catalog={catalog} initial={initial} symbol={sym} editable />
+      <div className="mt-6"><ReceiptCapture userId={user.id} date={today} editable initial={rcpts.map((r) => ({ id: r.id, clientId: r.clientId, bytes: r.bytes, capturedAt: r.capturedAt.toISOString() }))} /></div>
       {recent.filter((r) => r.date !== today).length > 0 && (
         <section className="mt-8">
           <h2 className="text-xl font-medium mb-3">Previous days</h2>

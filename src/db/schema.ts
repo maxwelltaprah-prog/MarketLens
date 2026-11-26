@@ -160,3 +160,39 @@ export const sales = pgTable('sales', {
   index('sales_date_idx').on(t.saleDate),
   index('sales_brand_idx').on(t.brandId, t.skuId),
 ])
+
+/** Receipt / invoice photos attached to a day's sales at an outlet. Stored inline (base64 JPEG, compressed on the device). */
+export const receipts = pgTable('receipts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  outletId: uuid('outlet_id').notNull().references(() => outlets.id),
+  promoterId: uuid('promoter_id').notNull().references(() => users.id),
+  saleDate: date('sale_date').notNull(),
+  clientId: text('client_id').notNull(),          // id generated on the device, makes offline replays idempotent
+  mime: text('mime').notNull(),
+  data: text('data').notNull(),                   // base64
+  bytes: integer('bytes').notNull(),
+  width: integer('width'),
+  height: integer('height'),
+  note: text('note'),
+  geoLat: doublePrecision('geo_lat'),
+  geoLng: doublePrecision('geo_lng'),
+  capturedAt: timestamp('captured_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('receipts_client_uq').on(t.promoterId, t.clientId),
+  index('receipts_outlet_date_idx').on(t.outletId, t.saleDate),
+])
+
+/** Monthly sales targets per promoter and company brand, with the incentive paid when the total is met. */
+export const targets = pgTable('targets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  month: text('month').notNull(),                 // YYYY-MM
+  promoterId: uuid('promoter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  brandId: uuid('brand_id').references(() => brands.id, { onDelete: 'cascade' }),   // null = incentive / total row for the promoter
+  units: integer('units').notNull().default(0),
+  incentive: numeric('incentive', { precision: 12, scale: 2 }),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('targets_uq').on(t.month, t.promoterId, t.brandId),
+  index('targets_month_idx').on(t.month),
+])

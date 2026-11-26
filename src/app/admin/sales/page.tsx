@@ -6,7 +6,8 @@ import { AreaChart, BarChart, BarLabels, HBarChart } from '@/components/charts'
 import { DashboardSkeleton, TableSkeleton } from '@/components/admin-skeletons'
 import { PageHeader, Empty, cx } from '@/components/ui'
 import { getFilterOptions } from '@/lib/admin-queries'
-import { getSalesAnalytics, getSalesFilterOptions, listSales, parseSalesFilters, SALES_PAGE, type SalesFilters } from '@/lib/sales-core'
+import { getSalesAnalytics, getSalesFilterOptions, listSales, parseSalesFilters, receiptCounts, SALES_PAGE, type SalesFilters } from '@/lib/sales-core'
+import { ReceiptGallery } from '@/components/receipt-gallery'
 import { getSettings } from '@/lib/settings'
 import { currencySymbol, fmtDate, fmtTime, money, todayISO } from '@/lib/format'
 
@@ -75,12 +76,13 @@ async function Analytics({ f }: { f: SalesFilters }) {
 async function Rows({ f, page }: { f: SalesFilters; page: number }) {
   const [{ rows, total }, settings] = await Promise.all([listSales(f, page), getSettings()])
   const sym = currencySymbol(settings.currency)
+  const rc = await receiptCounts(rows.map((r) => ({ outletId: r.outletId, date: r.date })))
   if (!rows.length) return <Empty icon="trend" title="No sales match these filters" hint="Widen the date range or clear filters." />
   return (
     <>
       <div className="scroll-x">
         <table className="w-full text-sm min-w-[56rem]">
-          <thead><tr className="bg-[#f3f4f0] text-left">{['Date', 'Outlet', 'Region', 'Promoter', 'Brand', 'Pack size', 'Units', `Unit price (${sym})`, `Value (${sym})`, 'Updated'].map((h) => <th key={h} className="th px-4 py-3 font-bold whitespace-nowrap">{h}</th>)}</tr></thead>
+          <thead><tr className="bg-[#f3f4f0] text-left">{['Date', 'Outlet', 'Region', 'Promoter', 'Brand', 'Pack size', 'Units', `Unit price (${sym})`, `Value (${sym})`, 'Receipts', 'Updated'].map((h) => <th key={h} className="th px-4 py-3 font-bold whitespace-nowrap">{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-line">
             {rows.map((r) => (
               <tr key={r.id} className="hover:bg-[#fafbf8]">
@@ -93,6 +95,7 @@ async function Rows({ f, page }: { f: SalesFilters; page: number }) {
                 <td className="px-4 py-3 tabular-nums font-semibold text-right">{r.quantity.toLocaleString()}</td>
                 <td className="px-4 py-3 tabular-nums text-right text-muted">{r.unitPrice ?? '—'}</td>
                 <td className="px-4 py-3 tabular-nums text-right">{r.value != null ? r.value.toLocaleString('en-GH', { minimumFractionDigits: 2 }) : '—'}</td>
+                <td className="px-4 py-3"><ReceiptGallery ids={rc.get(`${r.outletId}:${r.date}`)?.ids ?? []} label={`${r.outlet} · ${fmtDate(r.date)}`} /></td>
                 <td className="px-4 py-3 text-muted whitespace-nowrap text-xs">{fmtDate(r.updatedAt.toISOString().slice(0, 10))} {fmtTime(r.updatedAt)}</td>
               </tr>
             ))}

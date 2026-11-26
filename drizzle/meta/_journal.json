@@ -29,6 +29,13 @@
       "when": 1793812569640,
       "tag": "0003_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795712704361,
+      "tag": "0004_receipts_targets",
+      "breakpoints": true
     }
   ]
 }

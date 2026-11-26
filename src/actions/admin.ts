@@ -6,6 +6,7 @@ import { randomInt } from 'node:crypto'
 import { z } from 'zod'
 import { db, entries, entryPrices, outlets, users, skus, brands, skuBrands, settings, auditLog, sales } from '@/db'
 import { requireUser } from '@/lib/session'
+import { MONTH, addMonths, upsertTargets, getTargetGrid } from '@/lib/targets'
 import { settingsSchema } from '@/lib/settings'
 import { normalizePhone } from '@/lib/format'
 import { parseCsv } from '@/lib/csv'
@@ -221,6 +222,66 @@ export async function changeOwnPasswordAction(input: unknown): Promise<Result> {
   await db.update(users).set({ secretHash: await bcrypt.hash(p.data.next, 12) }).where(eq(users.id, admin.id))
   await audit(admin.id, 'admin.change_password', 'user', admin.id)
   return { ok: true }
+}
+
+/* ---------------- Targets ---------------- */
+const targetsSchema = z.object({
+  month: z.string().regex(MONTH),
+  items: z.array(z.object({ promoterId: uuid, brandId: uuid.nullable(), units: z.number().int().min(0).max(10_000_000), incentive: z.number().min(0).max(100_000_000).nullable() })).max(5000),
+})
+export async function saveTargetsAction(input: unknown): Promise<Result> {
+  const admin = await requireUser('admin')
+  const p = targetsSchema.safeParse(input)
+  if (!p.success) return { ok: false, error: 'Targets must be whole numbers of units; incentives must be amounts.' }
+  await upsertTargets(p.data.month, p.data.items)
+  await audit(admin.id, 'targets.save', 'targets', p.data.month, { cells: p.data.items.length })
+  revalidatePath('/admin', 'layout'); revalidatePath('/capture', 'layout')
+  return { ok: true }
+}
+/** Copies every target and incentive from the previous month into `month` (does not overwrite cells already set). */
+export async function copyTargetsAction(input: unknown): Promise<Result<{ copied: number }>> {
+  const admin = await requireUser('admin')
+  const p = z.object({ month: z.string().regex(MONTH) }).safeParse(input)
+  if (!p.success) return { ok: false, error: 'Invalid month.' }
+  const prev = await getTargetGrid(addMonths(p.data.month, -1)), cur = await getTargetGrid(p.data.month)
+  const items: Parameters<typeof upsertTargets>[1] = []
+  for (const r of prev.rows) {
+    const c = cur.rows.find((x) => x.promoterId === r.promoterId)
+    for (const [brandId, units] of Object.entries(r.targets)) if (units > 0 && !(c?.targets[brandId])) items.push({ promoterId: r.promoterId, brandId, units, incentive: null })
+    if (r.incentive != null && c?.incentive == null) items.push({ promoterId: r.promoterId, brandId: null, units: 0, incentive: r.incentive })
+  }
+  await upsertTargets(p.data.month, items)
+  await audit(admin.id, 'targets.copy', 'targets', p.data.month, { copied: items.length })
+  revalidatePath('/admin', 'layout'); revalidatePath('/capture', 'layout')
+  return { ok: true, copied: items.length }
+}
+/** CSV: promoter,brand,units[,incentive]. Promoter matched by phone or exact name; brand by name (company brands only). */
+export async function importTargetsAction(month: string, text: string): Promise<ImportResult> {
+  const admin = await requireUser('admin')
+  if (!MONTH.test(month)) return { ok: false, error: 'Invalid month.' }
+  const rows = cap(parseCsv(String(text).slice(0, 1_000_000)))
+  const body = /^promoter$/i.test(rows[0]?.[0] ?? '') ? rows.slice(1) : rows
+  if (!body.length) return { ok: false, error: 'The file is empty. Expected columns: promoter,brand,units,incentive' }
+  const grid = await getTargetGrid(month)
+  const byPhone = new Map(grid.rows.filter((r) => r.phone).map((r) => [r.phone!, r.promoterId])), byName = new Map(grid.rows.map((r) => [r.name.toLowerCase(), r.promoterId]))
+  const brandBy = new Map(grid.brands.map((b) => [b.name.toLowerCase(), b.id]))
+  const items: Parameters<typeof upsertTargets>[1] = []; const skipped: string[] = []
+  for (const [i, r] of body.entries()) {
+    const who = (r[0] ?? '').trim(); const pid = byPhone.get(normalizePhone(who) ?? '') ?? byName.get(who.toLowerCase())
+    if (!pid) { skipped.push(`Row ${i + 1}: promoter “${who}” not found`); continue }
+    const bname = (r[1] ?? '').trim().toLowerCase()
+    const units = Math.floor(Number(r[2] ?? '')); const inc = r[3]?.trim() ? Number(r[3]) : null
+    if (bname && bname !== 'total' && bname !== '*') {
+      const bid = brandBy.get(bname); if (!bid) { skipped.push(`Row ${i + 1}: brand “${r[1]}” is not a company brand`); continue }
+      if (!Number.isFinite(units)) { skipped.push(`Row ${i + 1}: units must be a number`); continue }
+      items.push({ promoterId: pid, brandId: bid, units, incentive: null })
+    }
+    if (inc != null && Number.isFinite(inc)) items.push({ promoterId: pid, brandId: null, units: 0, incentive: inc })
+  }
+  await upsertTargets(month, items)
+  await audit(admin.id, 'targets.import', 'targets', month, { cells: items.length })
+  revalidatePath('/admin', 'layout'); revalidatePath('/capture', 'layout')
+  return { ok: true, created: items.length, updated: 0, skipped: skipped.slice(0, 20) }
 }
 
 /* ---------------- CSV imports ---------------- */
