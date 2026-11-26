@@ -122,7 +122,7 @@ async function seedDemo(outletRows: (typeof s.outlets.$inferSelect)[], skuRows: 
       const company = await db.select({ id: s.brands.id }).from(s.brands).where(sql`${s.brands.isCompany} = true`)
       const companyPairs = pairs.filter((p) => company.some((c) => c.id === p.brandId))
       const salesRows = companyPairs.filter(() => Math.random() < 0.7).map((p) => ({
-        outletId: o.id, promoterId: promoter.id, saleDate: iso, skuId: p.skuId, brandId: p.brandId,
+        outletId: o.id, promoterId: promoter.id, saleDate: iso, skuId: p.skuId, brandId: p.brandId, clientId: `demo-${iso}-${p.skuId.slice(0, 8)}-${p.brandId.slice(0, 8)}`, capturedAt: new Date(`${iso}T${String(randomInt(9, 17)).padStart(2, '0')}:${String(randomInt(0, 59)).padStart(2, '0')}:00Z`),
         quantity: randomInt(1, 40), unitPrice: (base.get(`${p.skuId}:${p.brandId}`)! * trend * 1.05).toFixed(2),
       }))
       if (salesRows.length) await db.insert(s.sales).values(salesRows).onConflictDoNothing()

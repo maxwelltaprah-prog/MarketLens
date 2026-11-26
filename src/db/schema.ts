@@ -140,28 +140,7 @@ export const locationPings = pgTable('location_pings', {
   index('location_pings_time_idx').on(t.capturedAt),
 ])
 
-/** Daily sales recorded by promoters for company brands. One row per outlet × day × SKU × brand (upserted). */
-export const sales = pgTable('sales', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  outletId: uuid('outlet_id').notNull().references(() => outlets.id),
-  promoterId: uuid('promoter_id').notNull().references(() => users.id),
-  saleDate: date('sale_date').notNull(),
-  skuId: uuid('sku_id').notNull().references(() => skus.id),
-  brandId: uuid('brand_id').notNull().references(() => brands.id),
-  quantity: integer('quantity').notNull().default(0),
-  unitPrice: numeric('unit_price', { precision: 12, scale: 2 }),   // optional selling price, enables revenue
-  note: text('note'),
-  geoLat: doublePrecision('geo_lat'),
-  geoLng: doublePrecision('geo_lng'),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [
-  uniqueIndex('sales_uq').on(t.outletId, t.saleDate, t.skuId, t.brandId),
-  index('sales_date_idx').on(t.saleDate),
-  index('sales_brand_idx').on(t.brandId, t.skuId),
-])
-
-/** Receipt / invoice photos attached to a day's sales at an outlet. Stored inline (base64 JPEG, compressed on the device). */
+/** Receipt / invoice photo for one sale transaction. Stored inline (base64 JPEG, compressed on the device). */
 export const receipts = pgTable('receipts', {
   id: uuid('id').primaryKey().defaultRandom(),
   outletId: uuid('outlet_id').notNull().references(() => outlets.id),
@@ -181,6 +160,31 @@ export const receipts = pgTable('receipts', {
 }, (t) => [
   uniqueIndex('receipts_client_uq').on(t.promoterId, t.clientId),
   index('receipts_outlet_date_idx').on(t.outletId, t.saleDate),
+])
+
+/** Sales transactions recorded by promoters for company brands. One row per sale, each with its receipt. */
+export const sales = pgTable('sales', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  outletId: uuid('outlet_id').notNull().references(() => outlets.id),
+  promoterId: uuid('promoter_id').notNull().references(() => users.id),
+  saleDate: date('sale_date').notNull(),
+  skuId: uuid('sku_id').notNull().references(() => skus.id),
+  brandId: uuid('brand_id').notNull().references(() => brands.id),
+  quantity: integer('quantity').notNull().default(0),
+  unitPrice: numeric('unit_price', { precision: 12, scale: 2 }),   // optional selling price, enables revenue
+  receiptId: uuid('receipt_id').references(() => receipts.id, { onDelete: 'set null' }),
+  clientId: text('client_id'),                                      // device-generated, makes offline replays idempotent
+  note: text('note'),
+  geoLat: doublePrecision('geo_lat'),
+  geoLng: doublePrecision('geo_lng'),
+  capturedAt: timestamp('captured_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex('sales_client_uq').on(t.promoterId, t.clientId),
+  index('sales_date_idx').on(t.saleDate),
+  index('sales_outlet_date_idx').on(t.outletId, t.saleDate),
+  index('sales_brand_idx').on(t.brandId, t.skuId),
 ])
 
 /** Monthly sales targets per promoter and company brand, with the incentive paid when the total is met. */

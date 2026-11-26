@@ -6,7 +6,7 @@ import { AreaChart, BarChart, BarLabels, HBarChart } from '@/components/charts'
 import { DashboardSkeleton, TableSkeleton } from '@/components/admin-skeletons'
 import { PageHeader, Empty, cx } from '@/components/ui'
 import { getFilterOptions } from '@/lib/admin-queries'
-import { getSalesAnalytics, getSalesFilterOptions, listSales, parseSalesFilters, receiptCounts, SALES_PAGE, type SalesFilters } from '@/lib/sales-core'
+import { getSalesAnalytics, getSalesFilterOptions, listSales, parseSalesFilters, SALES_PAGE, type SalesFilters } from '@/lib/sales-core'
 import { ReceiptGallery } from '@/components/receipt-gallery'
 import { getSettings } from '@/lib/settings'
 import { currencySymbol, fmtDate, fmtTime, money, todayISO } from '@/lib/format'
@@ -30,7 +30,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
           extra: [{ k: 'region', label: 'Region', opts: so.regions.map((r) => ({ id: r, name: r })) }, { k: 'promoter', label: 'Promoter', opts: so.promoters }] }} />
       <Suspense key={JSON.stringify(raw)} fallback={<DashboardSkeleton />}><Analytics f={f} /></Suspense>
       <section className="card overflow-hidden mt-4">
-        <div className="px-5 py-4 border-b border-line flex items-center justify-between"><div><h2 className="font-semibold">All sales lines</h2><p className="text-xs text-muted">One line per outlet, day, brand and pack size</p></div></div>
+        <div className="px-5 py-4 border-b border-line flex items-center justify-between"><div><h2 className="font-semibold">All sales</h2><p className="text-xs text-muted">One row per sale, each with its receipt</p></div></div>
         <Suspense key={JSON.stringify(raw) + page} fallback={<TableSkeleton rows={8} />}><Rows f={f} page={page} /></Suspense>
       </section>
     </div>
@@ -57,7 +57,7 @@ async function Analytics({ f }: { f: SalesFilters }) {
       <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <Kpi hot label="Units sold" value={a.kpi.units.toLocaleString()} sub={<Delta d={a.kpi.unitsDelta} />} />
         <Kpi label="Sales value" value={a.kpi.value == null ? '—' : fmt(a.kpi.value)} sub={a.kpi.value == null ? 'Add unit prices to see value' : <Delta d={a.kpi.valueDelta} />} />
-        <Kpi label="Outlets selling" value={String(a.kpi.outlets)} sub={`${a.kpi.lines.toLocaleString()} lines over ${a.kpi.days} day${a.kpi.days === 1 ? '' : 's'}`} />
+        <Kpi label="Outlets selling" value={String(a.kpi.outlets)} sub={`${a.kpi.lines.toLocaleString()} sales over ${a.kpi.days} day${a.kpi.days === 1 ? '' : 's'}`} />
         <Kpi label="Units per day" value={a.kpi.perDay.toLocaleString()} sub="average across reporting days" />
       </div>
       <div className="grid xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4">
@@ -76,7 +76,6 @@ async function Analytics({ f }: { f: SalesFilters }) {
 async function Rows({ f, page }: { f: SalesFilters; page: number }) {
   const [{ rows, total }, settings] = await Promise.all([listSales(f, page), getSettings()])
   const sym = currencySymbol(settings.currency)
-  const rc = await receiptCounts(rows.map((r) => ({ outletId: r.outletId, date: r.date })))
   if (!rows.length) return <Empty icon="trend" title="No sales match these filters" hint="Widen the date range or clear filters." />
   return (
     <>
@@ -86,7 +85,7 @@ async function Rows({ f, page }: { f: SalesFilters; page: number }) {
           <tbody className="divide-y divide-line">
             {rows.map((r) => (
               <tr key={r.id} className="hover:bg-[#fafbf8]">
-                <td className="px-4 py-3 text-muted whitespace-nowrap">{fmtDate(r.date)}</td>
+                <td className="px-4 py-3 text-muted whitespace-nowrap">{fmtDate(r.date)}{r.capturedAt && <span className="block text-xs">{fmtTime(r.capturedAt)}</span>}</td>
                 <td className="px-4 py-3 font-semibold">{r.outlet}</td>
                 <td className="px-4 py-3 text-muted">{r.region}</td>
                 <td className="px-4 py-3 text-muted">{r.promoter}</td>
@@ -95,7 +94,7 @@ async function Rows({ f, page }: { f: SalesFilters; page: number }) {
                 <td className="px-4 py-3 tabular-nums font-semibold text-right">{r.quantity.toLocaleString()}</td>
                 <td className="px-4 py-3 tabular-nums text-right text-muted">{r.unitPrice ?? '—'}</td>
                 <td className="px-4 py-3 tabular-nums text-right">{r.value != null ? r.value.toLocaleString('en-GH', { minimumFractionDigits: 2 }) : '—'}</td>
-                <td className="px-4 py-3"><ReceiptGallery ids={rc.get(`${r.outletId}:${r.date}`)?.ids ?? []} label={`${r.outlet} · ${fmtDate(r.date)}`} /></td>
+                <td className="px-4 py-3"><ReceiptGallery ids={r.receiptId ? [r.receiptId] : []} label={`${r.outlet} · ${fmtDate(r.date)} · ${r.brand} ${r.sku}`} /></td>
                 <td className="px-4 py-3 text-muted whitespace-nowrap text-xs">{fmtDate(r.updatedAt.toISOString().slice(0, 10))} {fmtTime(r.updatedAt)}</td>
               </tr>
             ))}

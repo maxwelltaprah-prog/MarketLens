@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { getCurrentUser } from '@/lib/session'
 import { attachPings, cellsSchema, saveDraft, submitEntry } from '@/lib/capture-core'
 import { pingSchema } from '@/lib/location'
-import { salesMapSchema, saveSales, receiptSchema, saveReceipts } from '@/lib/sales-core'
+import { saleTxSchema, saveSales } from '@/lib/sales-core'
 import { isSameOrigin, logSecurity, memoryLimit, clientIp, userAgent } from '@/lib/security'
 
 /* Offline replay endpoint. The service worker (Background Sync) and the page both POST the outbox here.
@@ -11,7 +11,7 @@ import { isSameOrigin, logSecurity, memoryLimit, clientIp, userAgent } from '@/l
 export const dynamic = 'force-dynamic'
 
 const bodySchema = z.object({
-  items: z.array(z.object({ userId: z.string().uuid(), date: z.iso.date(), cells: cellsSchema, sales: salesMapSchema.default({}), receipts: z.array(receiptSchema).max(4).default([]), submit: z.boolean(), pings: z.array(pingSchema).max(300).default([]) })).max(60),
+  items: z.array(z.object({ userId: z.string().uuid(), date: z.iso.date(), cells: cellsSchema, sales: z.array(saleTxSchema).max(5).default([]), submit: z.boolean(), pings: z.array(pingSchema).max(300).default([]) })).max(60),
 })
 
 export async function POST(req: Request) {
@@ -34,13 +34,9 @@ export async function POST(req: Request) {
     const saved = Object.keys(item.cells).length || item.submit ? await saveDraft(user, item.date, item.cells) : { ok: true as const, status: 'draft' as const, savedAt: new Date().toISOString() }
     if (!saved.ok) { results.push({ date: item.date, ...saved }); continue }
     const latestFix = [...item.pings].sort((a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime())[0] ?? null
-    if (Object.keys(item.sales).length) {
+    if (item.sales.length) {
       const sv = await saveSales(user, item.date, item.sales, latestFix ? { lat: latestFix.lat, lng: latestFix.lng } : null)
       if (!sv.ok) { results.push({ date: item.date, ...sv }); continue }
-    }
-    if (item.receipts.length) {
-      const rv = await saveReceipts(user, item.date, item.receipts, latestFix ? { lat: latestFix.lat, lng: latestFix.lng } : null)
-      if (!rv.ok) { results.push({ date: item.date, ...rv }); continue }
     }
     // Location: the most recent fix in the batch is the one bound to the submission; the rest are the trail.
     const sorted = [...item.pings].sort((a, b) => new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime())

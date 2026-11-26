@@ -9,12 +9,17 @@ import { isIso, isUuid } from './admin-queries'
 /* ------------------------------------------------------------------
    Promoter side
 ------------------------------------------------------------------- */
-export const saleLineSchema = z.object({
-  quantity: z.number().int().min(0).max(1_000_000),
+/** One sale transaction as captured on the device. The receipt rides along (base64, compressed on the phone). */
+export const saleTxSchema = z.object({
+  clientId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/),
+  skuId: z.string().uuid(), brandId: z.string().uuid(),
+  quantity: z.number().int().min(1).max(1_000_000),
   unitPrice: z.string().max(14).regex(/^(\d{0,9}(\.\d{0,2})?)?$/).nullable().optional(),
+  note: z.string().max(200).optional(),
+  capturedAt: z.string().datetime(),
+  receipt: z.lazy(() => receiptSchema).nullable().optional(),
 })
-export const salesMapSchema = z.record(z.string().regex(/^[0-9a-f-]{36}:[0-9a-f-]{36}$/), saleLineSchema).refine((m) => Object.keys(m).length <= 300)
-export type SalesMap = z.infer<typeof salesMapSchema>
+export type SaleTx = z.infer<typeof saleTxSchema>
 
 export type CompanyCatalog = { brands: { id: string; name: string; skus: { id: string; label: string; code: string }[] }[] }
 
@@ -32,42 +37,61 @@ export async function getCompanyCatalog(): Promise<CompanyCatalog> {
   return out
 }
 
-export async function getSalesForDay(outletId: string, date: string): Promise<Record<string, { quantity: number; unitPrice: string | null }>> {
-  const rows = await db.select().from(sales).where(and(eq(sales.outletId, outletId), eq(sales.saleDate, date)))
-  return Object.fromEntries(rows.map((r) => [`${r.skuId}:${r.brandId}`, { quantity: r.quantity, unitPrice: r.unitPrice ?? null }]))
+export type DaySale = { id: string; clientId: string | null; skuId: string; brandId: string; quantity: number; unitPrice: string | null; receiptId: string | null; capturedAt: Date | null }
+export async function getSalesForDay(outletId: string, date: string): Promise<DaySale[]> {
+  return db.select({ id: sales.id, clientId: sales.clientId, skuId: sales.skuId, brandId: sales.brandId, quantity: sales.quantity, unitPrice: sales.unitPrice, receiptId: sales.receiptId, capturedAt: sales.capturedAt })
+    .from(sales).where(and(eq(sales.outletId, outletId), eq(sales.saleDate, date))).orderBy(asc(sales.capturedAt), asc(sales.createdAt))
 }
 
 export type SalesSaveResult = { ok: true; savedAt: string } | { ok: false; error: string; permanent: boolean }
 
-/** Upsert the day's sales lines. A quantity of 0 removes the line. Only company brands are accepted. */
-export async function saveSales(user: { id: string; outletId: string | null }, date: string, items: SalesMap, fix: { lat: number; lng: number } | null = null): Promise<SalesSaveResult> {
+/** Insert sale transactions (idempotent per clientId). Each receipt is stored first and linked. Only company brands are accepted. */
+export async function saveSales(user: { id: string; outletId: string | null }, date: string, items: SaleTx[], fix: { lat: number; lng: number } | null = null): Promise<SalesSaveResult> {
   if (!user.outletId) return { ok: false, error: 'You have no outlet assigned. Contact your administrator.', permanent: true }
   const s = await getSettings()
   const today = todayISO()
   if (date > today) return { ok: false, error: 'You can’t record sales for a future date.', permanent: true }
   if (date !== today && !s.allowBackdating) return { ok: false, error: 'Back-dated sales are turned off.', permanent: true }
-  const keys = Object.keys(items)
-  if (!keys.length) return { ok: true, savedAt: new Date().toISOString() }
+  if (!items.length) return { ok: true, savedAt: new Date().toISOString() }
   const valid = await db.select({ skuId: skuBrands.skuId, brandId: skuBrands.brandId }).from(skuBrands)
     .innerJoin(brands, eq(brands.id, skuBrands.brandId)).innerJoin(skus, eq(skus.id, skuBrands.skuId))
-    .where(and(eq(brands.isCompany, true), eq(brands.active, true), eq(skus.active, true), inArray(skuBrands.brandId, [...new Set(keys.map((k) => k.split(':')[1]))])))
+    .where(and(eq(brands.isCompany, true), eq(brands.active, true), eq(skus.active, true), inArray(skuBrands.brandId, [...new Set(items.map((i) => i.brandId))])))
   const ok = new Set(valid.map((v) => `${v.skuId}:${v.brandId}`))
   const now = new Date()
-  let touched = 0
-  for (const k of keys) {
-    if (!ok.has(k)) continue
-    const [skuId, brandId] = k.split(':'); const it = items[k]
-    if (it.quantity <= 0) { await db.delete(sales).where(and(eq(sales.outletId, user.outletId), eq(sales.saleDate, date), eq(sales.skuId, skuId), eq(sales.brandId, brandId))); touched++; continue }
+  let saved = 0
+  for (const it of items) {
+    if (!ok.has(`${it.skuId}:${it.brandId}`)) continue
+    if (s.requireReceipt && !it.receipt) return { ok: false, error: 'Every sale needs a receipt or invoice photo.', permanent: true }
+    let receiptId: string | null = null
+    if (it.receipt) {
+      const r = await saveReceipts(user, date, [it.receipt], fix)
+      if (!r.ok) return r
+      const [row] = await db.select({ id: receipts.id }).from(receipts).where(and(eq(receipts.promoterId, user.id), eq(receipts.clientId, it.receipt.clientId)))
+      receiptId = row?.id ?? null
+    }
     const price = it.unitPrice && Number(it.unitPrice) > 0 ? Number(it.unitPrice).toFixed(2) : null
-    await db.insert(sales).values({ outletId: user.outletId, promoterId: user.id, saleDate: date, skuId, brandId, quantity: it.quantity, unitPrice: price, geoLat: fix?.lat ?? null, geoLng: fix?.lng ?? null, updatedAt: now })
-      .onConflictDoUpdate({ target: [sales.outletId, sales.saleDate, sales.skuId, sales.brandId], set: { quantity: it.quantity, unitPrice: price, promoterId: user.id, updatedAt: now, ...(fix ? { geoLat: fix.lat, geoLng: fix.lng } : {}) } })
-    touched++
+    const ins = await db.insert(sales).values({ outletId: user.outletId, promoterId: user.id, saleDate: date, skuId: it.skuId, brandId: it.brandId, quantity: it.quantity, unitPrice: price, receiptId, clientId: it.clientId, note: it.note ?? null, geoLat: fix?.lat ?? null, geoLng: fix?.lng ?? null, capturedAt: new Date(it.capturedAt), updatedAt: now })
+      .onConflictDoNothing().returning({ id: sales.id })
+    if (ins.length) saved++
   }
-  if (touched) await db.insert(auditLog).values({ actorId: user.id, action: 'sales.save', entity: 'sales', entityId: `${user.outletId}:${date}`, meta: { lines: touched } })
+  if (saved) await db.insert(auditLog).values({ actorId: user.id, action: 'sales.save', entity: 'sales', entityId: `${user.outletId}:${date}`, meta: { transactions: saved } })
   return { ok: true, savedAt: now.toISOString() }
 }
 
-/** Recent daily totals for the promoter's outlet. */
+/** Promoter edits to today's own sale (quantity / price). */
+export async function updateSale(user: { id: string }, id: string, patch: { quantity?: number; unitPrice?: string | null }) {
+  const set: Record<string, unknown> = { updatedAt: new Date() }
+  if (patch.quantity != null) set.quantity = patch.quantity
+  if (patch.unitPrice !== undefined) set.unitPrice = patch.unitPrice && Number(patch.unitPrice) > 0 ? Number(patch.unitPrice).toFixed(2) : null
+  const r = await db.update(sales).set(set).where(and(eq(sales.id, id), eq(sales.promoterId, user.id), eq(sales.saleDate, todayISO()))).returning({ id: sales.id })
+  return r.length > 0
+}
+export async function deleteSale(user: { id: string }, id: string) {
+  const [row] = await db.delete(sales).where(and(eq(sales.id, id), eq(sales.promoterId, user.id), eq(sales.saleDate, todayISO()))).returning({ receiptId: sales.receiptId })
+  if (row?.receiptId) await db.delete(receipts).where(eq(receipts.id, row.receiptId))
+  return !!row
+}
+
 export async function recentSalesDays(outletId: string, limit = 30) {
   return db.select({ date: sales.saleDate, units: sql<number>`sum(${sales.quantity})::int`, lines: sql<number>`count(*)::int`, value: sql<string | null>`sum(${sales.quantity} * ${sales.unitPrice})` })
     .from(sales).where(eq(sales.outletId, outletId)).groupBy(sales.saleDate).orderBy(desc(sales.saleDate)).limit(limit)
@@ -98,17 +122,17 @@ function salesWhere(f: SalesFilters): SQL {
   return and(...parts)!
 }
 
-export type SalesRow = { id: string; outletId: string; date: string; outlet: string; region: string; promoter: string; brand: string; sku: string; quantity: number; unitPrice: string | null; value: number | null; updatedAt: Date }
+export type SalesRow = { id: string; outletId: string; date: string; outlet: string; region: string; promoter: string; brand: string; sku: string; quantity: number; unitPrice: string | null; value: number | null; receiptId: string | null; capturedAt: Date | null; updatedAt: Date }
 const base = () => db.select({
   id: sales.id, outletId: sales.outletId, date: sales.saleDate, outlet: outlets.name, region: outlets.region, promoter: users.name, brand: brands.name, sku: skus.label, skuOrder: skus.sortOrder,
-  quantity: sales.quantity, unitPrice: sales.unitPrice, updatedAt: sales.updatedAt,
+  quantity: sales.quantity, unitPrice: sales.unitPrice, receiptId: sales.receiptId, capturedAt: sales.capturedAt, updatedAt: sales.updatedAt,
 }).from(sales).innerJoin(outlets, eq(outlets.id, sales.outletId)).innerJoin(users, eq(users.id, sales.promoterId)).innerJoin(brands, eq(brands.id, sales.brandId)).innerJoin(skus, eq(skus.id, sales.skuId))
 
 export const SALES_PAGE = 25
 export async function listSales(f: SalesFilters, page: number) {
   const where = salesWhere(f)
   const [rows, [c]] = await Promise.all([
-    base().where(where).orderBy(desc(sales.saleDate), asc(outlets.name), asc(brands.name), asc(skus.sortOrder)).limit(SALES_PAGE).offset((page - 1) * SALES_PAGE),
+    base().where(where).orderBy(desc(sales.saleDate), desc(sales.capturedAt), asc(outlets.name)).limit(SALES_PAGE).offset((page - 1) * SALES_PAGE),
     db.select({ n: sql<number>`count(*)::int` }).from(sales).innerJoin(outlets, eq(outlets.id, sales.outletId)).where(where),
   ])
   return { rows: rows.map(toRow), total: c.n }
@@ -187,17 +211,3 @@ export async function saveReceipts(user: { id: string; outletId: string | null }
   return { ok: true, saved: ins.length }
 }
 
-export type ReceiptMeta = { id: string; clientId: string; mime: string; bytes: number; width: number | null; height: number | null; capturedAt: Date; note: string | null; promoterId: string }
-export async function listReceipts(outletId: string, date: string): Promise<ReceiptMeta[]> {
-  return db.select({ id: receipts.id, clientId: receipts.clientId, mime: receipts.mime, bytes: receipts.bytes, width: receipts.width, height: receipts.height, capturedAt: receipts.capturedAt, note: receipts.note, promoterId: receipts.promoterId })
-    .from(receipts).where(and(eq(receipts.outletId, outletId), eq(receipts.saleDate, date))).orderBy(asc(receipts.capturedAt))
-}
-/** Receipt counts for a set of (outlet, date) pairs, keyed `${outletId}:${date}`. */
-export async function receiptCounts(pairs: { outletId: string; date: string }[]) {
-  if (!pairs.length) return new Map<string, { n: number; ids: string[] }>()
-  const dates = [...new Set(pairs.map((p) => p.date))], outs = [...new Set(pairs.map((p) => p.outletId))]
-  const rows = await db.select({ outletId: receipts.outletId, date: receipts.saleDate, id: receipts.id }).from(receipts).where(and(inArray(receipts.outletId, outs), inArray(receipts.saleDate, dates))).orderBy(asc(receipts.capturedAt))
-  const m = new Map<string, { n: number; ids: string[] }>()
-  for (const r of rows) { const k = `${r.outletId}:${r.date}`; const e = m.get(k) ?? { n: 0, ids: [] }; e.n++; e.ids.push(r.id); m.set(k, e) }
-  return m
-}

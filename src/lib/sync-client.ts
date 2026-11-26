@@ -17,8 +17,8 @@ async function run(): Promise<FlushResult> {
   const items = await listItems()
   if (!items.length) return { reached: true, outcomes: [] }
   if (typeof navigator !== 'undefined' && !navigator.onLine) return { reached: false, outcomes: [] }
-  const RECEIPTS_PER_PUSH = 3 // keep each request well under serverless body limits
-  const payload = items.map((i) => ({ userId: i.userId, date: i.date, cells: i.cells, sales: i.sales ?? {}, submit: i.submit, pings: (i.pings ?? []).slice(0, 300), receipts: (i.receipts ?? []).slice(0, RECEIPTS_PER_PUSH) }))
+  const SALES_PER_PUSH = 3 // each sale carries a photo; keep requests well under serverless body limits
+  const payload = items.map((i) => ({ userId: i.userId, date: i.date, cells: i.cells, sales: (i.sales ?? []).slice(0, SALES_PER_PUSH), submit: i.submit, pings: (i.pings ?? []).slice(0, 300) }))
   let res: Response
   try {
     res = await fetch('/api/capture/sync', { method: 'POST', headers: { 'content-type': 'application/json', 'x-requested-with': 'marketlens' }, body: JSON.stringify({ items: payload }), credentials: 'same-origin' })
@@ -30,12 +30,12 @@ async function run(): Promise<FlushResult> {
   for (const r of data.results) {
     const it = byDate.get(r.date) as QueueItem | undefined
     if (!it) continue
-    if (r.ok) await ack(it.userId, it.date, it.cells as CellMap, !!r.submitted, Math.min(300, (it.pings ?? []).length), it.sales ?? {}, (it.receipts ?? []).slice(0, RECEIPTS_PER_PUSH).map((x) => x.clientId))
+    if (r.ok) await ack(it.userId, it.date, it.cells as CellMap, !!r.submitted, Math.min(300, (it.pings ?? []).length), (it.sales ?? []).slice(0, SALES_PER_PUSH).map((x) => x.clientId))
     else if (r.permanent) await drop(it.key)
     else await markError(it.key, r.error ?? 'Sync failed')
   }
   window.dispatchEvent(new CustomEvent('ml-synced', { detail: data.results }))
-  if ((await listItems()).some((i) => (i.receipts?.length ?? 0) > 0)) setTimeout(() => { void flushOutbox() }, 500)
+  if ((await listItems()).some((i) => (i.sales?.length ?? 0) > 0)) setTimeout(() => { void flushOutbox() }, 500)
   return { reached: true, outcomes: data.results }
 }
 

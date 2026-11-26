@@ -34,6 +34,7 @@ export function SettingsForm({ initial }: { initial: AppSettings }) {
           <select className="input !w-60" value={s.editWindowHours} onChange={(e) => setS({ ...s, editWindowHours: Number(e.target.value) })}>
             {[[0, 'No edits after submitting'], [2, '2 hours'], [6, '6 hours'], [12, '12 hours'], [24, '24 hours'], [48, '48 hours'], [168, '7 days']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select></Row>
+        <Row title="Require a receipt for every sale" sub="Promoters must photograph the receipt or invoice before a sale can be added."><Toggle label="Require receipt" checked={s.requireReceipt} onChange={(v) => setS({ ...s, requireReceipt: v })} /></Row>
         <Row title="Price variance warning" sub="Warn when a price differs from the 30-day average by more than:">
           <div className="relative w-40"><input className="input pr-9 text-right tabular-nums" type="number" min={1} max={500} step={1} value={s.varianceWarningPct} onChange={(e) => setS({ ...s, varianceWarningPct: Number(e.target.value) })} aria-label="Variance percent" /><span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted">%</span></div></Row>
       </section>

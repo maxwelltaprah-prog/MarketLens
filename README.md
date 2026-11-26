@@ -60,18 +60,19 @@ Admins record a sign-in position too. Positions captured offline ride along in t
 ## 4d. Daily sales
 
 Admin → SKUs & Brands has a **Brands** panel: tap a brand to mark it **Company** (Olam Agri) or Competitor. Only
-company brands appear on the promoters' **Sales** tab, where they pick the brand, the pack size, enter the units sold
-(and optionally the unit price) and tap Add. Lines for the day can be adjusted or removed; everything works offline
-and syncs with the price outbox. Admin → **Sales** shows units and value with period-over-period deltas, charts by day,
+company brands appear on the promoters' **Sales** tab, where each sale is recorded with its receipt (see 4e). Today's
+sales can be adjusted or removed; everything works offline and syncs with the price outbox. Admin → **Sales** shows units and value with period-over-period deltas, charts by day,
 pack size, brand, outlet and promoter, every line with the outlet name, and **Export to Excel** (a workbook with the
 lines plus summary sheets). The SKU import accepts an optional `type` column (`company` / `competitor`).
 
 ## 4e. Receipts and targets
 
-- **Receipts**: on the Sales tab promoters tap *Take photo* (camera) or *Gallery* to attach receipts or invoices for
-  the day. Photos are shrunk on the phone (≤1600 px JPEG, ~150–400 KB), queued offline and uploaded with the outbox.
-  Admins see a receipt count on each sales line (Admin → Sales) that opens a viewer. Images are stored in Postgres;
-  at ~300 KB each, 10,000 receipts ≈ 3 GB, so move to object storage (e.g. Vercel Blob) if volume grows.
+- **Receipts**: every sale is a transaction with its own receipt. On the Sales tab the promoter picks brand and pack
+  size, enters units, photographs the receipt (*Photo* opens the camera, *Gallery* picks an existing image) and taps
+  *Add sale*. Photos are shrunk on the phone (≤1600 px JPEG, ~150–400 KB), queued offline and uploaded with the
+  outbox. Settings → *Require a receipt for every sale* (on by default) blocks sales without one. Admin → Sales
+  shows one row per sale with a receipt viewer; the Excel export carries a link per receipt. Images are stored in
+  Postgres; at ~300 KB each, 10,000 receipts ≈ 3 GB, so move to object storage (e.g. Vercel Blob) if volume grows.
 - **Targets** (Admin → Targets): a month grid of promoters × company brands. Type the units target per brand and the
   incentive paid when the promoter's total is met; *Copy last month*; CSV import (`promoter,brand,units,incentive`,
   promoter by phone or name); Excel export of target vs actual. Promoters see a live target card on the Sales tab

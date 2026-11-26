@@ -8,6 +8,7 @@ export const settingsSchema = z.object({
   allowBackdating: z.boolean().default(false),
   editWindowHours: z.number().int().min(0).max(720).default(24),
   varianceWarningPct: z.number().min(1).max(500).default(40),
+  requireReceipt: z.boolean().default(true),             // every sale must carry a receipt / invoice photo
   // Location tracking
   locationTracking: z.boolean().default(true),          // ask promoters for their location in the field app
   requireLocation: z.boolean().default(false),          // block submission when no fix could be obtained

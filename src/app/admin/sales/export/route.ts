@@ -9,11 +9,12 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   const user = await getCurrentUser()
   if (!user || user.role !== 'admin') { await logSecurity('authz.denied', { path: '/admin/sales/export' }, user?.id ?? null); return new Response('Unauthorized', { status: 401 }) }
-  const { f } = parseSalesFilters(Object.fromEntries(new URL(req.url).searchParams.entries()))
+  const url = new URL(req.url); const origin = `${req.headers.get('x-forwarded-proto') ?? 'https'}://${req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? url.host}`
+  const { f } = parseSalesFilters(Object.fromEntries(url.searchParams.entries()))
   const [rows, a] = await Promise.all([allSales(f), getSalesAnalytics(f)])
   const wb = buildXlsx([
-    { name: 'Sales', header: ['Date', 'Outlet', 'Region', 'Promoter', 'Brand', 'Pack size', 'Units', 'Unit price', 'Value', 'Last updated'],
-      rows: rows.map((r) => [r.date, r.outlet, r.region, r.promoter, r.brand, r.sku, r.quantity, r.unitPrice == null ? null : Number(r.unitPrice), r.value, r.updatedAt.toISOString()]) },
+    { name: 'Sales', header: ['Date', 'Time', 'Outlet', 'Region', 'Promoter', 'Brand', 'Pack size', 'Units', 'Unit price', 'Value', 'Receipt', 'Last updated'],
+      rows: rows.map((r) => [r.date, r.capturedAt ? r.capturedAt.toISOString().slice(11, 16) : null, r.outlet, r.region, r.promoter, r.brand, r.sku, r.quantity, r.unitPrice == null ? null : Number(r.unitPrice), r.value, r.receiptId ? `${origin}/api/receipts/${r.receiptId}` : 'none', r.updatedAt.toISOString()]) },
     { name: 'By brand', header: ['Brand', 'Units', 'Value'], rows: a.byBrand.map((b) => [b.name, b.v, b.value]) },
     { name: 'By outlet', header: ['Outlet', 'Region', 'Units', 'Value'], rows: a.byOutlet.map((o) => [o.name, o.region, o.v, o.value]) },
     { name: 'By pack size', header: ['Pack size', 'Units'], rows: a.bySku.map((s) => [s.name, s.v]) },
